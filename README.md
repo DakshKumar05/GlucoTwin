@@ -21,7 +21,7 @@
 | Architecture diagram (PDF) | [docs/GlucoTwin_Architecture.pdf](docs/GlucoTwin_Architecture.pdf) |
 | Presentation (PDF) | [docs/GlucoTwin_Presentation.pdf](docs/GlucoTwin_Presentation.pdf) |
 | Public access | This repository is public. Every file above is in the repo, and the video is an unlisted (link-only) YouTube video, so no extra permissions are needed. |
-Video Link: | https://youtu.be/XxXYurqIs5s |
+Video Link: | https://youtu.be/dA7BjKpFh5A|
 
 
 ---
