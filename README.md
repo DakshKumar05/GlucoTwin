@@ -151,7 +151,7 @@ and next steps): [docs/GlucoTwin_Presentation.pdf](docs/GlucoTwin_Presentation.p
 ## Run it
 
 ```powershell
-git clone https://github.com/DakshKumar05/glucotwin.git
+git clone https://github.com/DakshKumar05/GlucoTwin.git
 cd glucotwin\glucotwin
 python -m venv .venv
 .venv\Scripts\activate
