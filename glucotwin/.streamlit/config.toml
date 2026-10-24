@@ -1,0 +1,72 @@
+# Theme: the "calm scientific instrument" design system shared with the patient-journey page
+# (tokens in ../styles/tokens.css). Dark green-black canvas, single-weight type, hairlines, one lime signal.
+[theme]
+base = "dark"
+primaryColor = "#cef79e"               # lime: active section pill, slider thumb, focus, progress (micro-surfaces only)
+backgroundColor = "#222f30"            # Abyssal Ink
+secondaryBackgroundColor = "#2b3738"   # widget fill: Abyssal Ink + 20% Graphite, so inputs stay visible on the canvas
+textColor = "#ffffff"                  # Paper
+borderColor = "#4d5757"                # Graphite hairlines
+showWidgetBorder = true
+showSidebarBorder = true
+baseRadius = "8px"
+buttonRadius = "8px"
+linkColor = "#ffffff"
+linkUnderline = true
+codeTextColor = "#c9cbbe"
+codeBackgroundColor = "#2b3738"
+dataframeBorderColor = "#4d5757"
+dataframeHeaderBackgroundColor = "#222f30"
+dataframeHeaderTextColor = "#c9cbbe"
+
+# Status colours. Red = the single clinical alert token; warnings use the status "serious" orange;
+# informational/neutral notes stay monochrome (Lichen); "good" uses the lime signal.
+redColor = "#e5484d"
+orangeColor = "#ec835a"
+yellowColor = "#ec835a"
+greenColor = "#cef79e"
+blueColor = "#c9cbbe"
+violetColor = "#c9cbbe"
+grayColor = "#c9cbbe"
+
+# Charts: validated 3-slot categorical palette (dark, on #222f30): glucose features, wearable, EHR.
+chartCategoricalColors = ["#3987e5", "#d95926", "#199e70"]
+
+font = "Aspekta, sans-serif"
+headingFont = "Aspekta, sans-serif"
+codeFont = "Roboto Mono, monospace"
+baseFontSize = 16
+baseFontWeight = 400
+codeFontWeight = 400
+headingFontWeights = [400, 400, 400, 400, 400, 400]
+headingFontSizes = ["58px", "42px", "36px", "24px", "18px", "16px"]
+metricValueFontSize = "36px"
+metricValueFontWeight = 400
+
+[[theme.fontFaces]]
+family = "Aspekta"
+url = "app/static/Aspekta-400.woff2"
+weight = 400
+style = "normal"
+
+[[theme.fontFaces]]
+family = "Roboto Mono"
+url = "app/static/RobotoMono-400.woff2"
+weight = 400
+style = "normal"
+
+[theme.sidebar]
+backgroundColor = "#222f30"
+secondaryBackgroundColor = "#2b3738"
+headingFontSizes = ["36px", "24px", "18px", "16px", "16px", "16px"]
+
+[server]
+headless = true
+runOnSave = false
+enableStaticServing = true
+
+[browser]
+gatherUsageStats = false
+
+[client]
+toolbarMode = "minimal"

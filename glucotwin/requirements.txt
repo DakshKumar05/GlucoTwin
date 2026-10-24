@@ -1,0 +1,13 @@
+# Tested with Python 3.14 on Windows 11 using: pandas 3.0.6, numpy 2.5.4, scikit-learn 1.9.1, scipy 1.18.1,
+# xgboost 3.4.1, streamlit 1.66.0, plotly 7.1.0, pytest 9.1.1, datasets 5.1.0, pyarrow 24.0.0. Python 3.10+ should work.
+pandas>=2.2
+numpy>=1.26
+scipy>=1.11
+scikit-learn>=1.4
+xgboost>=2.0        # optional at runtime: falls back to sklearn HistGradientBoosting if import fails
+joblib>=1.3
+streamlit>=1.50
+plotly>=5.20
+pytest>=8.0
+datasets>=5.1.0     # only for download_glucofm.py (Hugging Face GlucoFM-Bench download)
+pyarrow>=24.0.0     # Parquet I/O for data/raw/glucofm/ (24.0.0 tested: Windows Smart App Control blocked 26.0.0's DLLs)

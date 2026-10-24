@@ -1,0 +1,1056 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bed 7 Patient Journey</title>
+<link rel="preload" href="../fonts/Aspekta-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400&display=swap">
+<link rel="stylesheet" href="../styles/tokens.css">
+<style>
+/* Visual layer only. Tokens come from ../styles/tokens.css; this file maps the simulation's
+   data roles onto them and lays the page out as dark band → dark band → light band → footer. */
+:root{
+  /* Data roles on DARK surfaces (also what the canvas/SVG drawing code reads from :root). */
+  --ecg: var(--color-bioluminescent-lime);   /* the ECG trace is the one live biological signal */
+  --glu: var(--color-paper);
+  --ai: var(--color-lichen);
+  --rec: var(--color-paper);
+  --risk: var(--color-alert);
+
+  /* Instruments: bedside monitor screen and echo canvas */
+  --screen: var(--color-abyssal-ink);
+  --screen-grid: var(--color-graphite);
+  --screen-text: var(--color-lichen);
+  --screen-ink: var(--color-paper);
+  --echo-heat: var(--color-lichen);
+
+  /* Glucose chart */
+  --chart-grid: var(--color-graphite);
+  --chart-label: var(--color-lichen);
+  --chart-target-band: color-mix(in srgb, var(--color-paper) 5%, transparent);
+  --chart-now: color-mix(in srgb, var(--color-paper) 45%, transparent);
+
+  /* Explanation bars */
+  --bar-pos: var(--color-abyssal-ink);
+  --bar-neg: var(--color-bioluminescent-lime);
+  --bar-track: var(--color-tissue);
+
+  /* Illustration: people keep their original skin, hair and scrub colours (not system colours). */
+  --ill-skin-patient: #B97B57; --ill-skin-patient-shade: #A86C4C; --ill-skin-patient-line: #9C6444;
+  --ill-skin-patient-mouth: #7A4A32; --ill-hair-patient: #5A524D; --ill-eye-patient: #2B1E18;
+  --ill-skin-doctor: #A86E4A; --ill-hair-doctor: #7C7C7C;
+  --ill-skin-nurse: #8E5A3C; --ill-hair-nurse: #1E1714; --ill-eye-staff: #1E1E1E;
+  --ill-scrub-1: #1F6E68; --ill-scrub-2: #24807A; --ill-scrub-3: #2A938C; --ill-scrub-4: #2E9C93;
+
+  --gutter: clamp(16px, 4vw, 40px);
+  --mono: var(--font-roboto-mono);
+}
+/* Data roles on LIGHT surfaces: white/lichen would vanish on white cards, so they deepen here. */
+.band-light{
+  --ecg: var(--color-abyssal-ink);
+  --glu: var(--color-abyssal-ink);
+  --ai: var(--color-graphite);
+  --rec: var(--color-abyssal-ink);
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{background:var(--color-abyssal-ink)}
+body{margin:0;background:var(--color-abyssal-ink);color:var(--color-paper);font-family:var(--font-aspekta);font-weight:var(--font-weight-regular);font-size:var(--text-body);line-height:var(--leading-body);letter-spacing:var(--tracking-body);-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4,h5,h6,b,strong,dt,dd,th,button,select,label{font-weight:var(--font-weight-regular)}
+[hidden]{display:none!important}
+:focus-visible{outline:2px solid var(--color-bioluminescent-lime);outline-offset:2px}
+
+/* ---------- page frame ---------- */
+.wrap{max-width:calc(var(--page-max-width) + 2*var(--gutter));margin-inline:auto;padding-left:max(var(--gutter),env(safe-area-inset-left,0px));padding-right:max(var(--gutter),env(safe-area-inset-right,0px))}
+.band{padding-block:calc(var(--section-gap)/2)}
+.band-dark{background:var(--color-abyssal-ink);color:var(--color-paper);color-scheme:dark}
+.band-light{background:var(--color-bone-white);color:var(--color-abyssal-ink);color-scheme:light;padding-block:var(--section-gap)}
+#band1{padding-top:calc(var(--section-gap)*.6 + env(safe-area-inset-top,0px))}
+#band2{padding-bottom:var(--section-gap)}
+
+.counter{display:inline-flex;align-items:center;font-family:var(--mono);font-size:var(--text-caption);line-height:var(--leading-caption);letter-spacing:-0.02em;color:var(--color-lichen);border:1px solid var(--color-graphite);border-radius:var(--radius-tags);padding:6px 12px;white-space:nowrap}
+.band-light .counter{color:var(--color-graphite)}
+.band > .wrap > .counter{margin-bottom:var(--spacing-40)}
+
+/* publication tag: 6px dot + mono uppercase label */
+.tag{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:var(--text-caption);line-height:var(--leading-caption);letter-spacing:-0.02em;text-transform:uppercase;color:var(--color-graphite);white-space:nowrap}
+.tag::before{content:"";flex:none;width:6px;height:6px;border-radius:50%;background:var(--dot,var(--color-bioluminescent-lime))}
+.band-dark .tag{color:var(--color-lichen)}
+
+h2.title{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px 16px;margin:0 0 var(--spacing-24);font-size:var(--text-subheading);line-height:var(--leading-subheading);letter-spacing:var(--tracking-subheading)}
+
+/* ---------- band 1: header, ward scene, narration, playback ---------- */
+.hero{display:flex;flex-direction:column;align-items:flex-start;gap:var(--spacing-24);margin-bottom:var(--spacing-60)}
+h1{margin:0;font-size:clamp(36px, calc(22px + 2.6vw), var(--text-heading-lg));line-height:var(--leading-heading-lg);letter-spacing:-0.012em;text-wrap:balance}
+.sub{margin:0;max-width:46ch;font-size:var(--text-body-lg);line-height:var(--leading-body-lg);letter-spacing:var(--tracking-body-lg);color:var(--color-graphite)}
+.keys{display:flex;flex-wrap:wrap;gap:8px 24px}
+
+.stage{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:var(--spacing-40);align-items:start}
+.scene{border:1px solid var(--color-graphite);border-radius:var(--radius-cards);overflow:hidden;min-width:0}
+.scene-top{display:flex;justify-content:space-between;align-items:center;gap:8px 16px;padding:12px 16px;border-bottom:1px solid var(--color-graphite);flex-wrap:wrap}
+.scene-where{display:flex;align-items:baseline;gap:8px 16px;flex-wrap:wrap}
+.clock{font-family:var(--mono);font-size:15px;line-height:1;letter-spacing:-0.007em;color:var(--color-paper);font-variant-numeric:tabular-nums}
+.where{font-family:var(--mono);font-size:var(--text-caption);letter-spacing:-0.02em;text-transform:uppercase;color:var(--color-lichen)}
+#scene{display:block;width:100%;height:auto;max-width:100%}
+#scene text{font-family:var(--mono);letter-spacing:-0.02em}
+#scene .alert-text{font-family:var(--font-aspekta);letter-spacing:-0.001em}
+.co{opacity:0;transition:opacity .5s}
+.co.on{opacity:1}
+.fade{transition:opacity .6s}
+
+.narr{min-width:0;padding-top:var(--spacing-8)}
+.narr h3{margin:0 0 var(--spacing-16);font-size:var(--text-heading-sm);line-height:var(--leading-heading-sm);letter-spacing:-0.006em}
+.narr p{margin:0;max-width:44ch;color:var(--color-paper)}
+
+.controls{display:flex;flex-direction:column;gap:var(--spacing-20);margin-top:var(--spacing-40)}
+.ctl-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+button,select{font-family:var(--mono);font-size:14px;line-height:1;letter-spacing:-0.008em;text-transform:uppercase;color:var(--color-paper);background:transparent;border:1px solid var(--color-graphite);border-radius:var(--radius-buttons);padding:12px 16px;min-height:40px;cursor:pointer}
+button:hover,select:hover{border-color:var(--color-lichen)}
+select{text-transform:none;padding-block:10px}
+select option{background:var(--color-abyssal-ink);color:var(--color-paper)}
+button.primary{background:var(--color-paper);color:var(--color-abyssal-ink);border-color:var(--color-paper);min-width:104px}
+button.arrow{display:inline-grid;place-items:center;width:40px;height:40px;min-height:0;padding:0;background:var(--color-bioluminescent-lime);border:0;color:var(--color-abyssal-ink)}
+button.arrow svg{display:block}
+.ctl-row label{margin-left:auto;display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:var(--text-caption);letter-spacing:-0.02em;text-transform:uppercase;color:var(--color-lichen)}
+
+/* timeline: pill navigation */
+.timeline{position:relative;display:flex;gap:6px;cursor:pointer;user-select:none;border-radius:var(--radius-nav)}
+.timeline:focus-visible{outline-offset:4px}
+.timeline .seg{position:relative;flex:var(--w) 1 0;min-width:0;min-height:0;padding:9px 10px 10px;background:transparent;border:1px solid var(--color-graphite);border-radius:var(--radius-nav);overflow:hidden;text-transform:none;text-align:left;color:var(--color-lichen)}
+.timeline .seg:hover{border-color:var(--color-lichen)}
+.seg .fill{position:absolute;left:0;bottom:0;height:2px;width:0;background:var(--color-abyssal-ink)}
+.seg:not(.active) .fill{display:none}
+.seg > span{display:block;font-family:var(--mono);font-size:var(--text-caption);line-height:var(--leading-caption);letter-spacing:-0.02em;color:var(--color-lichen);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.seg .tm::after{content:"\A";white-space:pre}
+.seg.done > span::before{content:"";display:inline-block;width:6px;height:6px;margin-right:8px;border-radius:50%;background:var(--color-bioluminescent-lime);vertical-align:1px}
+.timeline .seg.active{background:var(--color-bioluminescent-lime);border-color:var(--color-bioluminescent-lime)}
+.seg.active > span{color:var(--color-abyssal-ink)}
+
+/* ---------- band 2: live readouts ---------- */
+.readouts{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"mon glu" "log log";gap:var(--spacing-60) var(--spacing-40)}
+.a-mon{grid-area:mon}.a-glu{grid-area:glu}.a-log{grid-area:log}
+.block{min-width:0;border-top:1px solid var(--color-graphite);padding-top:var(--spacing-20)}
+
+.mon{background:var(--screen);border:1px solid var(--color-graphite);border-radius:var(--radius-xl);padding:var(--spacing-16)}
+.mon-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--spacing-16);align-items:stretch}
+.ecgwrap{position:relative;min-width:0}
+#ecg{display:block;width:100%;height:120px}
+.leadsoff{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:var(--text-caption);text-transform:uppercase;color:var(--color-lichen)}
+.vitals{display:flex;flex-direction:column;justify-content:space-between;gap:var(--spacing-12);text-align:right;min-width:96px}
+.vital .lbl{font-family:var(--mono);font-size:var(--text-caption);line-height:var(--leading-caption);letter-spacing:-0.02em;text-transform:uppercase;color:var(--color-lichen)}
+.vital .num{font-size:42px;line-height:1;letter-spacing:-0.02em;color:var(--color-paper);font-variant-numeric:tabular-nums}
+.vital.spo .num{font-size:var(--text-heading-sm)}
+.mon-foot{display:flex;flex-wrap:wrap;gap:4px 20px;margin-top:var(--spacing-12);padding-top:var(--spacing-12);border-top:1px solid var(--color-graphite);font-family:var(--mono);font-size:var(--text-caption);letter-spacing:-0.02em;color:var(--color-lichen);font-variant-numeric:tabular-nums}
+.mon-foot .v{color:var(--color-paper)}
+
+.gtop{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:var(--spacing-12)}
+.gval{display:flex;align-items:baseline;gap:8px}
+.gval .num{font-size:var(--text-heading-lg);line-height:1;letter-spacing:-0.02em;color:var(--glu);font-variant-numeric:tabular-nums}
+.gval .arrow{font-size:var(--text-subheading);color:var(--glu)}
+.gval .unit{font-family:var(--mono);font-size:var(--text-caption);letter-spacing:-0.02em;color:var(--color-lichen)}
+.pill{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:var(--text-caption);line-height:var(--leading-caption);letter-spacing:-0.02em;text-transform:uppercase;border:1px solid var(--color-graphite);border-radius:var(--radius-tags);padding:6px 12px;color:var(--color-lichen)}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--color-graphite)}
+.pill.ok::before{background:var(--color-bioluminescent-lime)}
+.pill.warn::before{background:var(--color-paper)}
+.pill.bad{color:var(--color-alert);border-color:var(--color-alert)}
+.pill.bad::before{background:var(--color-alert)}
+#gchart{display:block;width:100%;height:auto}
+#gchart text{font-family:var(--mono);font-size:10px;letter-spacing:-0.02em;fill:var(--chart-label)}
+
+#log{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;max-height:330px;overflow:auto}
+#log li{display:grid;grid-template-columns:52px 6px minmax(0,1fr);gap:12px;align-items:baseline;padding:10px 8px;border-bottom:1px solid var(--color-graphite);font-size:16px;line-height:1.3;letter-spacing:-0.006em}
+#log li .tm{font-family:var(--mono);font-size:var(--text-caption);letter-spacing:-0.02em;color:var(--color-lichen)}
+#log li i{width:6px;height:6px;border-radius:50%;display:inline-block;transform:translateY(-2px)}
+#log li:first-child{background:color-mix(in srgb, var(--color-graphite) 35%, transparent)}
+#log li.new{animation:flash 1.2s ease-out}
+@keyframes flash{from{background:color-mix(in srgb, var(--color-lichen) 25%, transparent)}}
+
+/* ---------- band 3: patient record and Ward AI ---------- */
+.records{display:flex;flex-direction:column;gap:var(--spacing-40)}
+.card{background:var(--color-paper);color:var(--color-abyssal-ink);border:1px solid var(--color-lichen);border-radius:var(--radius-cards);padding:var(--card-padding);min-width:0}
+
+.who{display:flex;align-items:baseline;gap:8px 16px;flex-wrap:wrap;margin-bottom:var(--spacing-24)}
+.who .name{font-size:var(--text-heading-sm);line-height:var(--leading-heading-sm);letter-spacing:-0.006em}
+.who .meta{font-family:var(--mono);font-size:var(--text-caption);letter-spacing:-0.02em;color:var(--color-graphite)}
+.fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--spacing-24);margin:0;padding-top:var(--spacing-24);border-top:1px solid var(--color-lichen)}
+.fields div{min-width:0}
+.fields dt{font-family:var(--mono);font-size:var(--text-caption);line-height:var(--leading-caption);letter-spacing:-0.02em;text-transform:uppercase;color:var(--color-graphite)}
+.fields dd{margin:6px 0 0;transition:color .4s}
+.fields div:not(.filled) dd{color:var(--color-graphite)}
+.fields div:not(.filled) dd .v{display:none}
+.fields div.filled dd .p{display:none}
+
+.ai-grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:var(--spacing-40)}
+#model{display:block;width:100%;height:auto}
+#model text{font-family:var(--mono);font-size:12px;letter-spacing:-0.02em;fill:var(--color-graphite)}
+#model .node rect{fill:var(--color-bone-white);stroke:var(--color-lichen);stroke-width:1;transition:stroke .4s,fill .4s}
+#model .node.on rect{stroke:var(--nc,var(--ai))}
+#model .node.on text{fill:var(--color-abyssal-ink)}
+#model .node.busy rect{animation:busy 1s ease-in-out infinite}
+#model .node.alarm rect{fill:color-mix(in srgb, var(--color-alert) 12%, transparent);stroke:var(--risk)}
+#model .edge{fill:none;stroke:var(--color-lichen);stroke-width:1.6;transition:stroke .4s}
+#model .edge.on{stroke:var(--nc,var(--ai));stroke-dasharray:5 5;animation:flow .9s linear infinite}
+@keyframes flow{to{stroke-dashoffset:-20}}
+@keyframes busy{50%{fill:var(--color-tissue)}}
+.outs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--spacing-16);margin-top:var(--spacing-24)}
+.out{border:1px solid var(--color-lichen);border-radius:var(--radius-xl);padding:var(--spacing-20);min-width:0}
+.out .lbl{font-family:var(--mono);font-size:var(--text-caption);line-height:var(--leading-caption);letter-spacing:-0.02em;text-transform:uppercase;color:var(--color-graphite)}
+.out .big{margin:var(--spacing-8) 0;font-size:42px;line-height:1.05;letter-spacing:-0.02em;font-variant-numeric:tabular-nums}
+.out .note{font-size:16px;line-height:1.3;color:var(--color-graphite)}
+.prog{height:2px;background:var(--color-tissue);overflow:hidden;margin-top:var(--spacing-12)}
+.prog i{display:block;height:100%;width:0;background:var(--color-abyssal-ink)}
+.echo{display:flex;flex-direction:column;gap:var(--spacing-12);min-width:0}
+#echo{display:block;width:100%;height:auto;aspect-ratio:4/3;max-width:100%;border-radius:var(--radius-xl);background:var(--screen)}
+.echo .cap{font-family:var(--mono);font-size:var(--text-caption);line-height:var(--leading-caption);letter-spacing:-0.02em;color:var(--color-graphite)}
+.xai{margin-top:var(--spacing-40);padding-top:var(--spacing-24);border-top:1px solid var(--color-lichen)}
+.xai h4{margin:0 0 var(--spacing-8);font-size:var(--text-subheading);line-height:var(--leading-subheading);letter-spacing:var(--tracking-subheading)}
+.xai .hint{margin:0 0 var(--spacing-20);max-width:62ch;font-size:16px;color:var(--color-graphite)}
+.bars{display:flex;flex-direction:column;gap:10px}
+.bar{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) 48px;align-items:center;gap:var(--spacing-16);font-size:16px;line-height:1.3}
+.bar .name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar .src{display:inline-flex;align-items:center;gap:8px;margin-right:10px;font-family:var(--mono);font-size:var(--text-caption);letter-spacing:-0.02em;text-transform:uppercase;color:var(--color-graphite)}
+.bar .src::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--color-bioluminescent-lime)}
+.bar .track{height:8px;background:var(--bar-track);border-radius:2px;position:relative;overflow:hidden}
+.bar .track i{position:absolute;top:0;bottom:0;left:0;width:0;border-radius:2px;transition:width 1s cubic-bezier(.2,.7,.2,1)}
+.bar .val{font-family:var(--mono);font-size:var(--text-caption);letter-spacing:-0.02em;text-align:right;font-variant-numeric:tabular-nums}
+.bars .bar:last-child{padding-top:var(--spacing-12);border-top:1px solid var(--color-lichen)}
+.waiting{font-family:var(--mono);font-size:var(--text-caption);letter-spacing:-0.02em;color:var(--color-graphite);padding:6px 0}
+
+/* ---------- footer ---------- */
+footer.fine{background:var(--color-void);color:var(--color-paper);padding-block:var(--spacing-40) calc(var(--spacing-40) + env(safe-area-inset-bottom,0px))}
+footer.fine p{margin:0;max-width:90ch;font-family:var(--mono);font-size:var(--text-caption);line-height:1.5;letter-spacing:-0.02em}
+
+/* ---------- ward scene (SVG) colours ---------- */
+.f-ink{fill:var(--color-abyssal-ink)} .f-graphite{fill:var(--color-graphite)} .f-lichen{fill:var(--color-lichen)}
+.f-tissue{fill:var(--color-tissue)} .f-frost{fill:var(--color-frost)} .f-paper{fill:var(--color-paper)}
+.f-lime{fill:var(--color-bioluminescent-lime)} .f-alert{fill:var(--color-alert)}
+.k-ink{stroke:var(--color-abyssal-ink)} .k-graphite{stroke:var(--color-graphite)} .k-lichen{stroke:var(--color-lichen)}
+.k-lime{stroke:var(--color-bioluminescent-lime)}
+.f-skin-p{fill:var(--ill-skin-patient)} .f-skin-p2{fill:var(--ill-skin-patient-shade)} .k-skin-p{stroke:var(--ill-skin-patient)}
+.k-skin-pl{stroke:var(--ill-skin-patient-line)} .k-skin-pm{stroke:var(--ill-skin-patient-mouth)}
+.f-hair-p{fill:var(--ill-hair-patient)} .f-eye-p{fill:var(--ill-eye-patient)} .f-eye-s{fill:var(--ill-eye-staff)}
+.f-skin-d{fill:var(--ill-skin-doctor)} .f-hair-d{fill:var(--ill-hair-doctor)}
+.f-skin-n{fill:var(--ill-skin-nurse)} .f-hair-n{fill:var(--ill-hair-nurse)}
+.f-scrub-1{fill:var(--ill-scrub-1)} .f-scrub-2{fill:var(--ill-scrub-2)} .f-scrub-3{fill:var(--ill-scrub-3)} .f-scrub-4{fill:var(--ill-scrub-4)}
+.glow-stop{stop-color:var(--color-paper)}
+
+/* ---------- responsive ---------- */
+@media (max-width:980px){
+  .stage{grid-template-columns:minmax(0,1fr)}
+  .readouts{grid-template-columns:minmax(0,1fr);grid-template-areas:"mon" "glu" "log"}
+  .fields{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:620px){
+  .card{padding:var(--spacing-24)}
+  .ai-grid,.outs{grid-template-columns:minmax(0,1fr)}
+  .timeline{display:grid;grid-template-columns:repeat(4,minmax(0,1fr))}
+  .seg > span{font-size:0}
+  .seg .tm{font-size:var(--text-caption)}
+  .seg .tm::after{content:none}
+  .ctl-row label{margin-left:0}
+  .bar{grid-template-columns:minmax(0,1fr) 70px 40px}
+  .bar .name{white-space:normal}
+  .narr h3{font-size:var(--text-subheading);letter-spacing:var(--tracking-subheading)}
+}
+@media (prefers-reduced-motion:reduce){
+  #model .edge.on,#model .node.busy rect,#log li.new{animation:none}
+  .bar .track i{transition:none}
+}
+</style>
+</head>
+<body>
+
+<main>
+  <!-- BAND 1 · dark: header, ward scene, narration, playback -->
+  <section class="band band-dark" id="band1" aria-labelledby="pageTitle">
+    <div class="wrap">
+      <header class="hero">
+        <span class="counter">01 / 03</span>
+        <h1 id="pageTitle">Bed 7 Patient Journey.</h1>
+        <p class="sub">One simulated patient, two AI systems: a multimodal model that predicts heart disease risk, and a glucose forecaster that warns before a low. Press play, or jump to any stage.</p>
+        <div class="keys" aria-label="Colour key">
+          <span class="tag" style="--dot:var(--rec)">Clinical record</span>
+          <span class="tag" style="--dot:var(--ecg)">ECG</span>
+          <span class="tag" style="--dot:var(--ai)">Imaging and AI</span>
+          <span class="tag" style="--dot:var(--glu)">Glucose (CGM)</span>
+          <span class="tag" style="--dot:var(--risk)">Risk and alerts</span>
+        </div>
+      </header>
+
+      <div class="stage">
+        <section class="scene" aria-label="Ward animation">
+          <div class="scene-top">
+            <div class="scene-where"><span class="clock" id="clock">08:00</span><span class="where">Cardiac ward · Bed 7</span></div>
+            <span class="counter" id="stagechip">Stage 1 of 7</span>
+          </div>
+          <svg id="scene" viewBox="0 0 800 470" role="img" aria-label="Animated hospital room: a patient in bed with ECG leads and a glucose sensor, a bedside monitor, an IV pole, and a nurse and doctor who come and go.">
+            <defs>
+              <radialGradient id="glow"><stop offset="0" class="glow-stop" stop-opacity=".9"/><stop offset="1" class="glow-stop" stop-opacity="0"/></radialGradient>
+              <clipPath id="monclip"><rect x="0" y="0" width="190" height="112" rx="8"/></clipPath>
+            </defs>
+            <!-- room -->
+            <rect x="0" y="0" width="800" height="345" class="f-tissue"/>
+            <rect x="0" y="345" width="800" height="125" class="f-lichen"/>
+            <rect x="0" y="341" width="800" height="6" class="f-graphite"/>
+            <g class="k-graphite" stroke-width="1.5" stroke-opacity=".35">
+              <line x1="0" y1="390" x2="800" y2="390"/><line x1="0" y1="440" x2="800" y2="440"/>
+              <line x1="120" y1="347" x2="60" y2="470"/><line x1="320" y1="347" x2="300" y2="470"/><line x1="520" y1="347" x2="540" y2="470"/><line x1="720" y1="347" x2="780" y2="470"/>
+            </g>
+            <!-- window -->
+            <g>
+              <rect x="565" y="48" width="190" height="150" rx="4" class="f-frost"/>
+              <circle cx="712" cy="86" r="16" class="f-paper" opacity=".9"/>
+              <path d="M565 170 q30 -22 60 -6 q28 -20 60 -4 q36 -18 70 2 v36 h-190z" class="f-lichen"/>
+              <rect x="565" y="48" width="190" height="150" rx="4" fill="none" class="k-graphite" stroke-width="7"/>
+              <line x1="660" y1="48" x2="660" y2="198" class="k-graphite" stroke-width="5"/>
+              <line x1="565" y1="123" x2="755" y2="123" class="k-graphite" stroke-width="5"/>
+              <rect x="556" y="196" width="208" height="8" rx="2" class="f-graphite"/>
+            </g>
+            <!-- wall monitor -->
+            <g transform="translate(48,36)">
+              <rect x="-4" y="-4" width="198" height="120" rx="10" class="f-graphite"/>
+              <g clip-path="url(#monclip)">
+                <rect width="190" height="112" class="f-ink"/>
+                <text x="10" y="18" font-size="10" class="f-lichen">II</text>
+                <path id="mEcg" d="" fill="none" class="k-lime" stroke-width="1.6"/>
+                <text x="10" y="96" font-size="11" class="f-lichen">HR</text>
+                <text id="mHr" x="30" y="99" font-size="22" class="f-paper">--</text>
+                <text x="78" y="96" font-size="11" class="f-lichen">SpO₂</text>
+                <text id="mSpo" x="106" y="99" font-size="18" class="f-paper">--</text>
+                <text x="138" y="80" font-size="10" class="f-lichen">GLU</text>
+                <text id="mGlu" x="138" y="99" font-size="18" class="f-paper">--</text>
+                <rect id="mAlert" x="0" y="0" width="190" height="112" class="f-alert" opacity="0"/>
+              </g>
+              <circle cx="183" cy="-9" r="0" class="f-alert" id="mBadge"/>
+            </g>
+            <!-- AI gateway on ceiling -->
+            <g id="hub" transform="translate(400,24)">
+              <line x1="0" y1="-24" x2="0" y2="-10" class="k-graphite" stroke-width="3"/>
+              <rect x="-40" y="-10" width="80" height="24" rx="7" class="f-ink"/>
+              <circle id="hubLed" cx="-27" cy="2" r="4" class="f-lime" opacity=".35"/>
+              <text x="-17" y="7" font-size="13" class="f-paper">AI hub</text>
+            </g>
+            <!-- echo cart -->
+            <g id="cart" class="fade" opacity="0" transform="translate(586,212)">
+              <rect x="0" y="0" width="84" height="58" rx="5" class="f-graphite"/>
+              <rect x="5" y="5" width="74" height="48" rx="3" class="f-ink"/>
+              <path d="M42 9 L18 47 Q42 54 66 47 Z" class="f-graphite"/>
+              <path id="cartScan" d="M42 9 L42 50" class="k-lichen" stroke-width="1.5" opacity=".9"/>
+              <rect x="10" y="58" width="64" height="62" rx="5" class="f-lichen"/>
+              <rect x="16" y="66" width="52" height="8" rx="2" class="f-graphite"/>
+              <line x1="42" y1="120" x2="42" y2="180" class="k-graphite" stroke-width="5"/>
+              <line x1="14" y1="182" x2="70" y2="182" class="k-graphite" stroke-width="5"/>
+              <circle cx="16" cy="188" r="6" class="f-ink"/><circle cx="68" cy="188" r="6" class="f-ink"/>
+            </g>
+            <!-- people (behind the bed) -->
+            <g id="doctor" transform="translate(900,352) scale(.95)">
+              <g class="flip">
+                <g class="legB"><rect x="-10" y="-80" width="9" height="78" rx="4" class="f-ink"/><ellipse cx="-7" cy="-2" rx="8" ry="4" class="f-ink"/></g>
+                <g class="legF"><rect x="1" y="-80" width="9" height="78" rx="4" class="f-graphite"/><ellipse cx="4" cy="-2" rx="8" ry="4" class="f-ink"/></g>
+                <g class="armB"><rect x="-5" y="-136" width="10" height="52" rx="5" class="f-frost"/><circle cx="0" cy="-84" r="5" class="f-skin-d"/></g>
+                <path d="M-20 -128 Q-20 -142 -8 -142 L8 -142 Q20 -142 20 -128 L22 -44 L-22 -44 Z" class="f-paper"/>
+                <path d="M-6 -142 L0 -120 L6 -142" class="f-lichen"/>
+                <path d="M-9 -138 Q-14 -112 -4 -104 M9 -138 Q14 -112 4 -104" class="k-ink" stroke-width="2" fill="none"/>
+                <circle cx="0" cy="-102" r="3.5" class="f-graphite"/>
+                <rect x="-2" y="-150" width="8" height="10" class="f-skin-d"/>
+                <circle cx="0" cy="-160" r="14" class="f-skin-d"/>
+                <path d="M-14 -162 Q-12 -178 2 -176 Q14 -175 14 -160 Q8 -168 -2 -168 Q-10 -166 -14 -162Z" class="f-hair-d"/>
+                <circle cx="-8" cy="-161" r="1.6" class="f-eye-s"/>
+                <path d="M-14 -158 l-3 4 l3 1" class="f-skin-d"/>
+                <g class="armF"><rect x="-5" y="-136" width="10" height="50" rx="5" class="f-frost"/><circle cx="0" cy="-86" r="5" class="f-skin-d"/>
+                  <g class="item tablet"><rect x="-14" y="-102" width="16" height="22" rx="2" class="f-ink"/><rect x="-12" y="-100" width="12" height="16" rx="1" class="f-lichen" opacity=".85"/></g>
+                </g>
+              </g>
+            </g>
+            <g id="nurse" transform="translate(470,352) scale(.95)">
+              <g class="flip">
+                <g class="legB"><rect x="-10" y="-80" width="9" height="78" rx="4" class="f-scrub-1"/><ellipse cx="-7" cy="-2" rx="8" ry="4" class="f-paper"/></g>
+                <g class="legF"><rect x="1" y="-80" width="9" height="78" rx="4" class="f-scrub-2"/><ellipse cx="4" cy="-2" rx="8" ry="4" class="f-paper"/></g>
+                <g class="armB"><rect x="-5" y="-134" width="10" height="46" rx="5" class="f-scrub-3"/><circle cx="0" cy="-88" r="5" class="f-skin-n"/></g>
+                <path d="M-18 -128 Q-18 -140 -6 -140 L6 -140 Q18 -140 18 -128 L18 -72 L-18 -72 Z" class="f-scrub-4"/>
+                <path d="M-7 -140 L0 -128 L7 -140" class="f-paper"/>
+                <rect x="6" y="-122" width="8" height="10" rx="1" class="f-paper"/>
+                <rect x="-3" y="-148" width="7" height="9" class="f-skin-n"/>
+                <circle cx="0" cy="-158" r="14" class="f-skin-n"/>
+                <path d="M-14 -160 Q-12 -176 2 -175 Q15 -173 14 -156 Q9 -166 -3 -167 Q-11 -166 -14 -160Z" class="f-hair-n"/>
+                <circle cx="12" cy="-163" r="7" class="f-hair-n"/>
+                <circle cx="-8" cy="-159" r="1.6" class="f-eye-s"/>
+                <path d="M-14 -156 l-3 4 l3 1" class="f-skin-n"/>
+                <g class="armF"><rect x="-5" y="-134" width="10" height="46" rx="5" class="f-scrub-3"/><circle cx="0" cy="-88" r="5" class="f-skin-n"/>
+                  <g class="item clip"><rect x="-16" y="-104" width="16" height="22" rx="2" class="f-graphite"/><rect x="-14" y="-100" width="12" height="16" class="f-paper"/><rect x="-11" y="-106" width="6" height="4" class="f-ink"/></g>
+                  <g class="item cup"><path d="M-13 -100 h12 l-2 15 h-8z" class="f-paper"/><rect x="-12" y="-98" width="10" height="5" class="f-lichen"/></g>
+                </g>
+              </g>
+            </g>
+            <!-- IV pole -->
+            <g>
+              <line x1="22" y1="164" x2="22" y2="410" class="k-graphite" stroke-width="4"/>
+              <line x1="4" y1="410" x2="40" y2="410" class="k-graphite" stroke-width="4"/>
+              <path d="M8 164 h28" class="k-graphite" stroke-width="3"/>
+              <rect x="9" y="168" width="26" height="42" rx="7" class="f-paper k-lichen"/>
+              <rect x="13" y="184" width="18" height="22" rx="4" class="f-frost"/>
+              <rect x="18" y="212" width="8" height="18" rx="3" class="f-paper k-lichen"/>
+              <circle id="drip" cx="22" cy="218" r="2" class="f-lichen"/>
+              <path d="M22 230 C 40 330, 300 300, 368 268" class="k-lichen" stroke-width="2" fill="none"/>
+            </g>
+            <!-- bed -->
+            <g>
+              <rect x="140" y="214" width="16" height="124" rx="5" class="f-graphite"/>
+              <rect x="566" y="248" width="13" height="88" rx="5" class="f-graphite"/>
+              <rect x="150" y="302" width="424" height="16" rx="4" class="f-graphite"/>
+              <line x1="170" y1="318" x2="170" y2="398" class="k-graphite" stroke-width="6"/>
+              <line x1="552" y1="318" x2="552" y2="398" class="k-graphite" stroke-width="6"/>
+              <circle cx="170" cy="404" r="8" class="f-ink"/><circle cx="552" cy="404" r="8" class="f-ink"/>
+              <rect x="150" y="281" width="420" height="23" rx="6" class="f-paper"/>
+              <rect x="380" y="300" width="70" height="14" rx="2" class="f-frost"/>
+              <text x="388" y="311" font-size="9" class="f-graphite">BED 7</text>
+            </g>
+            <!-- patient -->
+            <g id="patient">
+              <ellipse cx="200" cy="276" rx="44" ry="12" class="f-paper"/>
+              <rect x="226" y="250" width="40" height="33" rx="6" class="f-lichen"/>
+              <path d="M226 258 q8 -4 14 0 v-8 h-14z" class="f-skin-p"/>
+              <ellipse cx="204" cy="258" rx="26" ry="20" class="f-skin-p"/>
+              <path d="M180 262 Q176 244 192 238 Q200 236 204 240 Q196 246 190 262 Q186 272 182 270Z" class="f-hair-p"/>
+              <path d="M186 268 Q196 278 214 277 L200 270Z" class="f-hair-p"/>
+              <path d="M204 238 Q208 230 213 238" class="f-skin-p k-skin-pl" stroke-width="1"/>
+              <g id="eye"><ellipse cx="198" cy="243" rx="3.4" ry="1.6" class="f-eye-p"/></g>
+              <path d="M218 246 q4 1 6 -1" class="k-skin-pm" stroke-width="1.5" fill="none"/>
+              <ellipse cx="196" cy="259" rx="4" ry="5" class="f-skin-p2"/>
+              <g id="sweat" opacity="0"><path d="M210 232 q2 4 0 6 q-2 -2 0 -6z" class="f-paper"/><path d="M220 236 q2 4 0 6 q-2 -2 0 -6z" class="f-paper"/></g>
+              <path id="blanket" d="" class="f-graphite"/>
+              <path id="blanketFold" d="" class="f-frost"/>
+              <g id="arm">
+                <path d="M262 262 L296 263" class="k-lichen" stroke-width="16" stroke-linecap="round"/>
+                <path d="M292 263 L368 267" class="k-skin-p" stroke-width="12" stroke-linecap="round"/>
+                <circle cx="372" cy="267" r="7.5" class="f-skin-p"/>
+                <g id="cgm" class="fade" opacity="0">
+                  <circle id="cgmGlow" cx="284" cy="255" r="14" fill="url(#glow)" opacity=".5"/>
+                  <circle cx="284" cy="256" r="6.5" class="f-paper k-graphite" stroke-width="2"/>
+                  <circle cx="284" cy="256" r="2" class="f-ink"/>
+                </g>
+              </g>
+              <g id="leads" class="fade" opacity="0">
+                <path d="M306 250 C 300 190, 260 170, 236 150" class="k-graphite" stroke-width="1.8" fill="none"/>
+                <path d="M326 248 C 318 186, 262 168, 238 148" class="k-graphite" stroke-width="1.8" fill="none"/>
+                <path d="M346 251 C 336 182, 264 166, 240 146" class="k-graphite" stroke-width="1.8" fill="none"/>
+                <circle cx="306" cy="250" r="4" class="f-paper k-graphite"/><circle cx="326" cy="248" r="4" class="f-paper k-graphite"/><circle cx="346" cy="251" r="4" class="f-paper k-graphite"/>
+              </g>
+            </g>
+            <!-- echo probe -->
+            <g id="probe" class="fade" opacity="0">
+              <path id="beam" d="M326 236 L296 262 L356 262 L334 236 Z" class="f-lichen" opacity=".35"/>
+              <rect id="probeBody" x="324" y="214" width="12" height="24" rx="5" class="f-paper k-graphite"/>
+              <path d="M330 214 C 360 170, 540 170, 610 260" class="k-ink" stroke-width="2" fill="none"/>
+            </g>
+            <g id="packets"></g>
+            <!-- callouts -->
+            <g class="co" id="coLeads"><rect x="268" y="176" width="92" height="22" rx="5" class="f-ink" opacity=".85"/><text x="276" y="191" font-size="12" class="f-paper">ECG leads</text></g>
+            <g class="co" id="coCgm"><rect x="228" y="296" width="104" height="22" rx="5" class="f-ink" opacity=".85"/><text x="236" y="311" font-size="12" class="f-paper">CGM on arm</text><line x1="270" y1="296" x2="282" y2="266" class="k-ink" stroke-width="1.5"/></g>
+            <g class="co" id="coEcho"><rect x="350" y="196" width="128" height="22" rx="5" class="f-ink" opacity=".85"/><text x="358" y="211" font-size="12" class="f-paper">Echocardiogram</text></g>
+            <g class="co" id="coHub"><rect x="440" y="16" width="176" height="22" rx="5" class="f-ink" opacity=".85"/><text x="448" y="31" font-size="12" class="f-paper">Data streams to the AI</text></g>
+            <g class="co" id="coAlert"><rect x="250" y="40" width="300" height="34" rx="8" class="f-alert"/><text x="400" y="62" font-size="15" class="f-paper alert-text" text-anchor="middle">Low glucose predicted at 09:34</text></g>
+            <rect id="wash" x="0" y="0" width="800" height="470" class="f-alert" opacity="0" pointer-events="none"/>
+          </svg>
+        </section>
+
+        <div class="narr" aria-live="polite">
+          <h3 id="narrTitle">Admission</h3>
+          <p id="narrText"></p>
+        </div>
+      </div>
+
+      <section class="controls" aria-label="Playback">
+        <div class="ctl-row">
+          <button class="primary" id="btnPlay" type="button">Pause</button>
+          <button id="btnPrev" type="button" aria-label="Previous stage">◀ Stage</button>
+          <button id="btnNext" type="button" aria-label="Next stage">Stage ▶</button>
+          <button class="arrow" type="button" tabindex="-1" aria-hidden="true" title="Next stage" onclick="document.getElementById('btnNext').click()"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 9h12M10 4l5 5-5 5"/></svg></button>
+          <button id="btnRestart" type="button">Restart</button>
+          <label for="selSpeed">Speed
+            <select id="selSpeed">
+              <option value="0.5">0.5×</option>
+              <option value="1" selected>1×</option>
+              <option value="2">2×</option>
+              <option value="4">4×</option>
+            </select>
+          </label>
+        </div>
+        <div class="timeline" id="timeline" role="slider" aria-label="Simulation time" aria-valuemin="0" aria-valuemax="120" aria-valuenow="0" tabindex="0"></div>
+      </section>
+    </div>
+  </section>
+
+  <!-- BAND 2 · dark: live readouts -->
+  <section class="band band-dark" id="band2" aria-label="Live readouts">
+    <div class="wrap">
+      <span class="counter">02 / 03</span>
+      <div class="readouts">
+        <section class="block a-mon" aria-label="Bedside monitor">
+          <h2 class="title">Bedside monitor <span class="tag">lead II · 25 mm/s</span></h2>
+          <div class="mon">
+            <div class="mon-row">
+              <div class="ecgwrap"><canvas id="ecg"></canvas><div class="leadsoff" id="leadsoff">Leads off</div></div>
+              <div class="vitals">
+                <div class="vital hr"><div class="lbl">HR bpm</div><div class="num" id="hr">--</div></div>
+                <div class="vital spo"><div class="lbl">SpO₂ %</div><div class="num" id="spo">--</div></div>
+              </div>
+            </div>
+            <div class="mon-foot"><span>NIBP <span class="v" id="bp">--/--</span></span><span>RR <span class="v" id="rr">--</span></span><span>Temp <span class="v" id="tmp">--</span></span></div>
+          </div>
+        </section>
+
+        <section class="block a-glu" aria-label="Glucose">
+          <h2 class="title">Glucose · CGM <span class="tag">reading every 5 min</span></h2>
+          <div class="gtop">
+            <div class="gval"><span class="num" id="gNum">--</span><span class="arrow" id="gArrow"></span><span class="unit">mg/dL</span></div>
+            <span class="pill" id="gPill">Sensor not attached</span>
+          </div>
+          <svg id="gchart" viewBox="0 0 400 210" role="img" aria-label="Glucose readings over time with the AI forecast and a 70 mg/dL low threshold">
+            <g id="gAxes"></g><g id="gData"></g>
+          </svg>
+        </section>
+
+        <section class="block a-log" aria-label="Event log">
+          <h2 class="title">Event log <span class="tag" id="logCount">0 events</span></h2>
+          <ol id="log"></ol>
+        </section>
+      </div>
+    </div>
+  </section>
+
+  <!-- BAND 3 · light: patient record and the Ward AI system -->
+  <section class="band band-light" id="band3" aria-label="Record and AI">
+    <div class="wrap">
+      <span class="counter">03 / 03</span>
+      <div class="records">
+        <section class="card" aria-label="Patient">
+          <h2 class="title">Patient <span class="tag">simulated</span></h2>
+          <div class="who"><span class="name">Anil Verma</span><span class="meta">58 · male · MRN 7-20417</span></div>
+          <dl class="fields" id="fields">
+            <div data-t="0.5"><dt>Reason for admission</dt><dd><span class="v">Chest discomfort on exertion</span><span class="p">…</span></dd></div>
+            <div data-t="1.5"><dt>History</dt><dd><span class="v">Type 2 diabetes, 11 yrs</span><span class="p">…</span></dd></div>
+            <div data-t="3"><dt>Blood pressure</dt><dd><span class="v">148/92 mmHg</span><span class="p">…</span></dd></div>
+            <div data-t="4"><dt>LDL cholesterol</dt><dd><span class="v">172 mg/dL</span><span class="p">…</span></dd></div>
+            <div data-t="5"><dt>HbA1c</dt><dd><span class="v">8.1%</span><span class="p">…</span></dd></div>
+            <div data-t="5"><dt>Insulin</dt><dd><span class="v">Rapid-acting, given 08:05</span><span class="p">…</span></dd></div>
+            <div data-t="7"><dt>Diet</dt><dd><span class="v">Nil by mouth until echo</span><span class="p">…</span></dd></div>
+            <div data-t="7"><dt>Smoking</dt><dd><span class="v">Never</span><span class="p">…</span></dd></div>
+          </dl>
+        </section>
+
+        <section class="card" aria-label="AI system">
+          <h2 class="title">Ward AI system <span class="tag">illustrative model outputs</span></h2>
+          <div class="ai-grid">
+            <div style="min-width:0">
+              <svg id="model" viewBox="0 0 560 196" role="img" aria-label="Model diagram: clinical record, ECG and echo images feed a multimodal fusion model that outputs heart risk; CGM readings feed a glucose forecaster that outputs a low-glucose alert.">
+                <path class="edge" id="eRec" d="M140 27 C 175 27, 180 62, 210 66"/>
+                <path class="edge" id="eEcg" d="M140 69 C 175 69, 180 75, 210 75"/>
+                <path class="edge" id="eEcho" d="M140 111 C 175 111, 180 86, 210 84"/>
+                <path class="edge" id="eCgm" d="M140 163 C 175 163, 180 165, 210 165"/>
+                <path class="edge" id="eFus" d="M360 75 C 390 75, 390 75, 420 75"/>
+                <path class="edge" id="eFc" d="M360 165 C 390 165, 390 165, 420 165"/>
+                <g class="node" id="nRec" style="--nc:var(--rec)"><rect x="10" y="12" width="130" height="30" rx="7"/><text x="22" y="32">Clinical record</text></g>
+                <g class="node" id="nEcg" style="--nc:var(--ecg)"><rect x="10" y="54" width="130" height="30" rx="7"/><text x="22" y="74">ECG signal</text></g>
+                <g class="node" id="nEcho" style="--nc:var(--ai)"><rect x="10" y="96" width="130" height="30" rx="7"/><text x="22" y="116">Echo images</text></g>
+                <g class="node" id="nCgm" style="--nc:var(--glu)"><rect x="10" y="148" width="130" height="30" rx="7"/><text x="22" y="168">CGM readings</text></g>
+                <g class="node" id="nFus"><rect x="210" y="40" width="150" height="70" rx="9"/><text x="224" y="70">Multimodal fusion</text><text x="224" y="88">model</text></g>
+                <g class="node" id="nFc" style="--nc:var(--glu)"><rect x="210" y="146" width="150" height="38" rx="9"/><text x="224" y="170">Glucose forecaster</text></g>
+                <g class="node" id="nRisk" style="--nc:var(--risk)"><rect x="420" y="55" width="130" height="40" rx="9"/><text x="432" y="80" id="tRisk">Heart risk</text></g>
+                <g class="node" id="nHypo" style="--nc:var(--glu)"><rect x="420" y="146" width="130" height="38" rx="9"/><text x="432" y="170" id="tHypo">Low alert</text></g>
+              </svg>
+              <div class="outs">
+                <div class="out">
+                  <div class="lbl">Heart disease risk</div>
+                  <div class="big" id="riskBig" style="color:var(--risk)">—</div>
+                  <div class="note" id="riskNote">Waiting for ECG and imaging</div>
+                  <div class="prog" id="riskProg" hidden><i></i></div>
+                </div>
+                <div class="out">
+                  <div class="lbl">Glucose, next 60 min</div>
+                  <div class="big" id="fcBig" style="color:var(--glu)">—</div>
+                  <div class="note" id="fcNote">Forecast starts once the CGM has data</div>
+                </div>
+              </div>
+            </div>
+            <div class="echo">
+              <canvas id="echo" width="320" height="240" aria-label="Echocardiogram view with explanation heat map"></canvas>
+              <div class="cap" id="echoCap">No images yet</div>
+            </div>
+          </div>
+          <div class="xai">
+            <h4>Why the model says high risk</h4>
+            <p class="hint">Each finding's contribution in percentage points, added to a 10% baseline. The doctor reviews these before acting.</p>
+            <div class="bars" id="bars"><div class="waiting">Appears when the heart model finishes (08:45).</div></div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="fine"><div class="wrap"><p>Simulated patient and illustrative model outputs for teaching and demonstration. Not a medical device, and not clinical advice. The glucose forecaster represents a model trained on public CGM data such as GlucoFM-Bench. Heart risk contributions are SHAP-style attributions made up for this demo.</p></div></footer>
+
+<script>
+(() => {
+const $ = id => document.getElementById(id);
+const NS = "http://www.w3.org/2000/svg";
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const T_END = 120, SIM_RATE = 2; // sim minutes per real second at 1x
+
+const STAGES = [
+  {s:0,  e:10,  name:"Admission", text:"Anil, 58, arrives on the cardiac ward with chest discomfort. He has type 2 diabetes and uses insulin. The nurse records his history, blood pressure and blood test results, and this record becomes the AI's first input."},
+  {s:10, e:18,  name:"Sensors on", text:"ECG leads go on his chest and a continuous glucose monitor (CGM) goes on his upper arm. Both start streaming to the ward's AI hub: the ECG continuously, glucose every 5 minutes."},
+  {s:18, e:32,  name:"Heart imaging", text:"An echocardiogram scans his heart. He must stay nil by mouth for the scan, but his usual insulin dose was already given at 08:05. That combination will matter later."},
+  {s:32, e:48,  name:"Heart risk AI", text:"The multimodal model combines the clinical record, the ECG and the echo images. It estimates a 71% risk of significant coronary artery disease, and shows which findings drove that score."},
+  {s:48, e:60,  name:"Glucose forecast", text:"The glucose forecaster looks at the last readings and predicts the next hour. With insulin on board and no food, it expects glucose to drop below 70 mg/dL at about 09:34 and raises an alert."},
+  {s:60, e:80,  name:"Alert and care", text:"The alert reaches the nurse 38 minutes before the predicted low. She gives 15 g of fast-acting glucose now that the scan is done. The cardiologist reviews the AI's heart report and its explanation."},
+  {s:80, e:120, name:"Outcome", text:"Glucose rises and stays in range, so the low never happens. The doctor confirms the plan: stress test, cardiology follow-up and a statin review. Clinicians make every decision; the AI flags risks early and explains them."}
+];
+
+const EVENTS = [
+  [0,  "rec", "Admitted to Bed 7 with chest discomfort"],
+  [3,  "rec", "Vitals and labs entered: BP 148/92, LDL 172, HbA1c 8.1%"],
+  [5,  "glu", "Usual rapid-acting insulin given"],
+  [7,  "rec", "Nil by mouth until echocardiogram"],
+  [10, "ecg", "ECG leads attached, HR 88, ST depression noted"],
+  [12, "glu", "CGM sensor started"],
+  [18, "ai",  "Echocardiogram started"],
+  [30, "ai",  "Echo images sent to AI hub"],
+  [32, "ai",  "Heart model fusing record, ECG and echo"],
+  [45, "risk","Heart risk 71% (high), explanation ready"],
+  [50, "glu", "Glucose forecast updated: falling"],
+  [56, "risk","ALERT: low glucose predicted at 09:34"],
+  [62, "rec", "Nurse at bedside, patient sweaty and shaky"],
+  [64, "glu", "15 g fast-acting glucose given"],
+  [69, "ai",  "Cardiologist reviewing AI heart report"],
+  [78, "rec", "Plan: stress test, cardiology follow-up, statin review"],
+  [82, "glu", "New forecast: stays in range"],
+  [95, "ecg", "HR settled at 84, patient comfortable"]
+];
+const COL = {rec:"--rec", ecg:"--ecg", ai:"--ai", glu:"--glu", risk:"--risk"};
+
+const XAI = [
+  ["ST depression", "ECG", 19],
+  ["Thickened LV wall", "Echo", 14],
+  ["LDL 172 mg/dL", "Record", 11],
+  ["Age 58", "Record", 8],
+  ["Diabetes, HbA1c 8.1%", "Record", 7],
+  ["BP 148/92", "Record", 6],
+  ["Never smoked", "Record", -4]
+];
+
+// ---------- clinical model of glucose ----------
+const untreated = t => t < 25 ? 150 - 0.15*t : 40 + (146.25-40)*Math.exp(-(t-25)/55);
+const treated = t => t < 64 ? untreated(t) : untreated(t) + 50*(1-Math.exp(-(t-64)/15));
+const noise = k => 2.5*Math.sin(k*1.7) + 1.5*Math.sin(k*0.37+1);
+const reading = k => treated(k) + noise(k);
+const HYPO_T = (() => { for (let t=25; t<200; t+=0.1) if (untreated(t) < 70) return t; })();
+const clock = t => { const m = 480 + Math.floor(t); return String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0"); };
+const HR = t => t < 56 ? 88 : t < 70 ? 104 : t < 90 ? 94 : 84;
+
+// ---------- state ----------
+const st = {t:0, playing:!reduce, speed:1};
+function boot(d){
+  if (d && typeof d.t === "number") { st.t = d.t; st.speed = d.speed || 1; st.playing = !!d.playing; }
+  start();
+}
+
+// ---------- timeline ----------
+const tl = $("timeline");
+STAGES.forEach((s,i) => {
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "seg"; b.style.setProperty("--w", s.e - s.s);
+  b.innerHTML = `<div class="fill"></div><span><span class="tm">${clock(s.s)}</span>${i+1}. ${s.name}</span>`;
+  b.addEventListener("click", ev => { ev.stopPropagation(); jump(s.s + 0.01); });
+  b.setAttribute("aria-label", `Stage ${i+1}: ${s.name}, starts ${clock(s.s)}`);
+  tl.appendChild(b);
+});
+const segs = [...tl.children];
+tl.addEventListener("keydown", e => {
+  if (e.key === "ArrowRight") { jump(Math.min(T_END, st.t + 5)); e.preventDefault(); }
+  if (e.key === "ArrowLeft")  { jump(Math.max(0, st.t - 5)); e.preventDefault(); }
+});
+
+const stageIdx = t => { for (let i=STAGES.length-1;i>=0;i--) if (t >= STAGES[i].s) return i; return 0; };
+function jump(t){ st.t = t; clearPackets(); render(true); }
+
+$("btnPlay").onclick = () => { if (st.t >= T_END) st.t = 0; st.playing = !st.playing; syncPlay(); };
+$("btnRestart").onclick = () => { jump(0); st.playing = true; syncPlay(); };
+$("btnPrev").onclick = () => { const i = stageIdx(st.t); const into = st.t - STAGES[i].s; jump(STAGES[into > 2 || i === 0 ? i : i-1].s + 0.01); };
+$("btnNext").onclick = () => { const i = stageIdx(st.t); if (i < STAGES.length-1) jump(STAGES[i+1].s + 0.01); };
+$("selSpeed").onchange = e => { st.speed = +e.target.value; };
+function syncPlay(){ $("btnPlay").textContent = st.playing ? "Pause" : (st.t >= T_END ? "Replay" : "Play"); }
+document.addEventListener("keydown", e => { if (e.code === "Space" && !/INPUT|SELECT|BUTTON/.test(document.activeElement.tagName)) { e.preventDefault(); $("btnPlay").click(); } });
+
+// ---------- patient fields ----------
+const fields = [...document.querySelectorAll("#fields > div")];
+
+// ---------- ECG ----------
+const gau = (x,m,s,a) => a*Math.exp(-((x-m)**2)/(2*s*s));
+const ecg = p => gau(p,.12,.025,.12) + gau(p,.21,.008,-.12) + gau(p,.235,.011,1) + gau(p,.26,.01,-.28) + gau(p,.33,.04,-.07) + gau(p,.47,.045,.24);
+const ecgC = $("ecg"), ex = ecgC.getContext("2d");
+let ecgW = 0, ecgH = 0, buf = null, head = 0, phase = 0, pxAcc = 0;
+function sizeEcg(){
+  const r = ecgC.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  ecgW = Math.max(60, Math.round(r.width)); ecgH = Math.max(40, Math.round(r.height));
+  ecgC.width = ecgW*dpr; ecgC.height = ecgH*dpr; ex.setTransform(dpr,0,0,dpr,0,0);
+  buf = new Float32Array(ecgW).fill(NaN); head = 0;
+}
+new ResizeObserver(sizeEcg).observe(ecgC); sizeEcg();
+function stepEcg(dt, t){
+  const pxs = 100, hr = HR(t), on = t >= 10;
+  pxAcc += dt*pxs;
+  while (pxAcc >= 1) { pxAcc -= 1; phase = (phase + hr/60/pxs) % 1; buf[head] = on ? ecg(phase) + (Math.random()-.5)*.025 : 0; head = (head+1) % ecgW; }
+}
+function drawEcg(){
+  ex.clearRect(0,0,ecgW,ecgH);
+  ex.strokeStyle = C.screenGrid; ex.lineWidth = 1; ex.beginPath();
+  for (let x=0;x<ecgW;x+=20){ ex.moveTo(x+.5,0); ex.lineTo(x+.5,ecgH); }
+  for (let y=0;y<ecgH;y+=20){ ex.moveTo(0,y+.5); ex.lineTo(ecgW,y+.5); }
+  ex.stroke();
+  const mid = ecgH*0.6, amp = ecgH*0.5;
+  ex.strokeStyle = C.ecg; ex.lineWidth = 1.8; ex.lineJoin = "round"; ex.beginPath();
+  let pen = false;
+  for (let i=0;i<ecgW;i++){
+    const gap = (i - head + ecgW) % ecgW < 14, v = buf[i];
+    if (gap || isNaN(v)) { pen = false; continue; }
+    const y = mid - v*amp; if (!pen) { ex.moveTo(i,y); pen = true; } else ex.lineTo(i,y);
+  }
+  ex.stroke();
+  const hv = buf[(head-1+ecgW)%ecgW];
+  if (!isNaN(hv)) { ex.fillStyle = C.ecg; ex.beginPath(); ex.arc(head-1, mid-hv*amp, 2.5, 0, 6.3); ex.fill(); }
+}
+
+// ---------- echo canvas ----------
+const echoC = $("echo"), eh = echoC.getContext("2d");
+const echoBase = (() => {
+  const w = 320, h = 240, cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+  const c = cv.getContext("2d"), img = c.createImageData(w,h);
+  const rgb = hex => [1,3,5].map(k => parseInt(hex.slice(k,k+2),16)), bg = rgb(css("--screen")), fg = rgb(css("--screen-ink"));
+  let seed = 7; const rnd = () => (seed = (seed*16807) % 2147483647) / 2147483647;
+  const ox = 160, oy = 10, R = 220, A = 0.75;
+  const chambers = [[150,118,34,52],[208,124,24,40],[150,196,30,22],[212,196,22,18]];
+  for (let y=0;y<h;y++) for (let x=0;x<w;x++){
+    const dx = x-ox, dy = y-oy, r = Math.hypot(dx,dy), a = Math.atan2(dx,dy);
+    let v = 0;
+    if (dy > 0 && r < R && Math.abs(a) < A) {
+      v = 40 + rnd()*90;
+      for (const [cx,cy,rx,ry] of chambers) { const d = ((x-cx)/rx)**2 + ((y-cy)/ry)**2; if (d < 1) v *= 0.15 + 0.5*d; }
+      const wall = Math.abs(x-180) < 9 && y > 70 && y < 200; if (wall) v += 70;
+      v *= 1 - r/R*0.45;
+    }
+    const i = (y*w+x)*4; const u = Math.min(255,v)/255; for (let ch=0;ch<3;ch++) img.data[i+ch] = bg[ch] + (fg[ch]-bg[ch])*u; img.data[i+3]=255;
+  }
+  c.putImageData(img,0,0);
+  return cv;
+})();
+function drawEcho(t, rt){
+  const w = 320, h = 240;
+  eh.fillStyle = C.screen; eh.fillRect(0,0,w,h);
+  if (t < 18) { eh.fillStyle = C.screenText; eh.font = `16px ${C.sans}`; eh.textAlign = "center"; eh.fillText("Echocardiogram not started", w/2, h/2); $("echoCap").textContent = "No images yet"; return; }
+  eh.save();
+  const beat = reduce ? 0 : Math.max(0, Math.sin(rt*Math.PI*2*HR(t)/60))*0.015;
+  eh.translate(160,120); eh.scale(1+beat, 1+beat); eh.translate(-160,-120);
+  if (t < 32) {
+    const frac = Math.min(1,(t-18)/12);
+    eh.beginPath(); eh.moveTo(160,10); eh.arc(160,10,220,Math.PI/2+0.75,Math.PI/2+0.75-1.5*frac,true); eh.closePath(); eh.clip();
+  }
+  eh.drawImage(echoBase,0,0);
+  eh.restore();
+  if (t < 32) {
+    const a = 0.75 - 1.5*Math.min(1,(t-18)/12);
+    eh.strokeStyle = C.ai; eh.lineWidth = 2; eh.beginPath(); eh.moveTo(160,10); eh.lineTo(160+Math.sin(a)*220, 10+Math.cos(a)*220); eh.stroke();
+    $("echoCap").textContent = "Scanning: apical four-chamber view";
+  } else if (t < 45) {
+    $("echoCap").textContent = "Echo received, model analysing";
+  } else {
+    const g = eh.createRadialGradient(180,135,4,180,135,60);
+    g.addColorStop(0,alpha(C.screenInk,.75)); g.addColorStop(.5,alpha(C.heat,.35)); g.addColorStop(1,alpha(C.heat,0));
+    eh.fillStyle = g; eh.fillRect(100,60,160,150);
+    eh.strokeStyle = C.screenInk; eh.lineWidth = 1; eh.setLineDash([3,3]); eh.strokeRect(166,74,28,126); eh.setLineDash([]);
+    eh.fillStyle = C.screenInk; eh.font = `400 13px ${C.sans}`; eh.textAlign = "left"; eh.fillText("Septal wall 14 mm", 200, 92);
+    $("echoCap").textContent = "Heat map: the region the model weighed most (thickened septum)";
+  }
+}
+
+// ---------- glucose chart ----------
+const GX = t => 36 + t/T_END*356, GY = g => 10 + (210-g)/(210-40)*172;
+(function axes(){
+  let s = `<rect x="36" y="${GY(180)}" width="356" height="${GY(70)-GY(180)}" style="fill:var(--chart-target-band)"/>`;
+  [70,100,140,180].forEach(g => {
+    s += `<line x1="36" x2="392" y1="${GY(g)}" y2="${GY(g)}" style="stroke:${g===70?"var(--risk)":"var(--chart-grid)"}" ${g===70?'stroke-dasharray="4 3"':""}/>`;
+    s += `<text x="30" y="${GY(g)+3}" text-anchor="end">${g}</text>`;
+  });
+  s += `<text x="390" y="${GY(70)-4}" text-anchor="end" style="fill:var(--risk)">low &lt; 70</text>`;
+  s += `<text x="390" y="${GY(180)+11}" text-anchor="end" style="fill:var(--chart-label)">target 70–180</text>`;
+  [0,30,60,90,120].forEach(t => { s += `<text x="${GX(t)}" y="204" text-anchor="${t===120?"end":t===0?"start":"middle"}">${clock(t)}</text>`; });
+  $("gAxes").innerHTML = s;
+})();
+const band = (a,b,f,w) => { let up = "", dn = ""; for (let x=a;x<=b;x+=2){ up += `${up?"L":"M"}${GX(x).toFixed(1)} ${GY(f(x)+w(x)).toFixed(1)} `; } for (let x=b;x>=a;x-=2){ dn += `L${GX(x).toFixed(1)} ${GY(f(x)-w(x)).toFixed(1)} `; } return up+dn+"Z"; };
+const line = (a,b,f) => { let s = ""; for (let x=a;x<=b;x+=2) s += `${s?"L":"M"}${GX(x).toFixed(1)} ${GY(f(x)).toFixed(1)} `; return s; };
+function drawGlucose(t){
+  let s = "";
+  if (t >= 50) {
+    const faded = t >= 64;
+    s += `<path d="${band(50,110,untreated,x=>3+0.3*(x-50))}" style="fill:var(--ai)" fill-opacity="${faded?.06:.12}"/>`;
+    s += `<path d="${line(50,110,untreated)}" fill="none" stroke="${C.ai}" stroke-width="2" stroke-dasharray="${faded?"3 4":"6 3"}" opacity="${faded?.55:1}"/>`;
+    s += `<text x="${GX(faded?104:72)}" y="${faded?GY(untreated(104))+16:GY(untreated(72))-10}" text-anchor="middle" style="fill:var(--ai)">${faded?"without treatment":"AI forecast"}</text>`;
+  }
+  if (t >= 56) {
+    s += `<circle cx="${GX(HYPO_T)}" cy="${GY(70)}" r="5" fill="none" stroke="${C.risk}" stroke-width="2"/>`;
+    s += `<text x="${GX(HYPO_T)-8}" y="${GY(70)-8}" text-anchor="end" style="fill:var(--risk)">low at ${clock(HYPO_T)}</text>`;
+  }
+  if (t >= 64) {
+    s += `<line x1="${GX(64)}" x2="${GX(64)}" y1="${GY(205)}" y2="${GY(45)}" stroke="${C.glu}" stroke-width="1" stroke-dasharray="2 3"/>`;
+    s += `<text x="${GX(64)+4}" y="${GY(198)}" style="fill:var(--glu)">15 g glucose</text>`;
+  }
+  if (t >= 82) {
+    s += `<path d="${band(82,120,treated,x=>2+0.2*(x-82))}" style="fill:var(--ai)" fill-opacity=".12"/>`;
+    s += `<path d="${line(82,120,treated)}" fill="none" stroke="${C.ai}" stroke-width="2" stroke-dasharray="6 3"/>`;
+  }
+  if (t >= 12) {
+    let p = "", dots = "";
+    for (let k=12;k<=t;k+=5){ const x = GX(k).toFixed(1), y = GY(reading(k)).toFixed(1); p += `${p?"L":"M"}${x} ${y} `; dots += `<circle cx="${x}" cy="${y}" r="2.6" fill="${C.glu}"/>`; }
+    s += `<path d="${p}" fill="none" stroke="${C.glu}" stroke-width="1.6" opacity=".7"/>` + dots;
+  }
+  s += `<line x1="${GX(t)}" x2="${GX(t)}" y1="10" y2="${GY(40)}" style="stroke:var(--chart-now)" stroke-width="1"/>`;
+  $("gData").innerHTML = s;
+
+  const last = t >= 12 ? Math.floor((t-12)/5)*5+12 : null;
+  const num = $("gNum"), arr = $("gArrow"), pill = $("gPill");
+  if (last === null) { num.textContent = "--"; arr.textContent = ""; }
+  else {
+    num.textContent = Math.round(reading(last));
+    const d = last >= 17 ? reading(last) - reading(last-5) : 0;
+    arr.textContent = d < -6 ? "↓↓" : d < -2 ? "↓" : d > 6 ? "↑↑" : d > 2 ? "↑" : "→";
+  }
+  let cls = "", txt = "";
+  if (t < 12) { txt = "Sensor not attached"; }
+  else if (t < 50) { cls = "ok"; txt = "In range"; }
+  else if (t < 56) { cls = "warn"; txt = "Falling"; }
+  else if (t < 64) { cls = "bad"; txt = `Low predicted ${clock(HYPO_T)}`; }
+  else if (t < 82) { cls = "warn"; txt = "Treated, rising"; }
+  else { cls = "ok"; txt = "Stable in range"; }
+  pill.className = "pill " + cls; pill.textContent = txt;
+}
+
+// ---------- scene ----------
+const pk = $("packets"), packets = [];
+let hubFlash = 0;
+const spawnAcc = {rec:0, ecg:0, glu:0, echo:0};
+function spawn(x, y, color){
+  const c = document.createElementNS(NS,"circle"); c.setAttribute("r","3.4"); c.setAttribute("fill",color);
+  pk.appendChild(c); packets.push({c, x, y, age:0, dur:1.3});
+}
+function clearPackets(){ packets.splice(0).forEach(p => p.c.remove()); }
+function stepPackets(dt, t, nurseX){
+  if (!reduce) {
+    const want = [
+      ["rec", t >= 1 && t < 8, 0.45, () => spawn(nurseX - 16, 248, C.rec)],
+      ["ecg", t >= 10, 0.38, () => spawn(326, 246, C.ecg)],
+      ["glu", t >= 12, 1.1, () => spawn(284, 254, C.glu)],
+      ["echo", t >= 18 && t < 32, 0.22, () => spawn(330, 214, C.ai)]
+    ];
+    for (const [k, on, every, fn] of want) { if (!on) { spawnAcc[k] = 0; continue; } spawnAcc[k] += dt; while (spawnAcc[k] >= every) { spawnAcc[k] -= every; fn(); } }
+  }
+  for (let i=packets.length-1;i>=0;i--){
+    const p = packets[i]; p.age += dt; const u = p.age/p.dur;
+    if (u >= 1) { p.c.remove(); packets.splice(i,1); hubFlash = 1; continue; }
+    const cx = p.x, cy = 40, ex2 = 400, ey = 30, a = 1-u;
+    p.c.setAttribute("cx", (a*a*p.x + 2*a*u*cx + u*u*ex2).toFixed(1));
+    p.c.setAttribute("cy", (a*a*p.y + 2*a*u*cy + u*u*ey).toFixed(1));
+    p.c.setAttribute("opacity", u > .85 ? ((1-u)/.15).toFixed(2) : 1);
+  }
+}
+const NURSE = [[0,470],[8,470],[12,900],[58,900],[62,300],[74,300],[79,900],[999,900]];
+const DOC   = [[0,900],[64,900],[69,470],[100,470],[106,900],[999,900]];
+function walk(kf, t){
+  for (let i=0;i<kf.length-1;i++){
+    const [t0,x0] = kf[i], [t1,x1] = kf[i+1];
+    if (t <= t1) { if (t < t0) return {x:x0, v:0}; const u = (t-t0)/(t1-t0), e = u*u*(3-2*u); return {x: x0+(x1-x0)*e, v: x1===x0 ? 0 : Math.sign(x1-x0)}; }
+  }
+  return {x: kf[kf.length-1][1], v:0};
+}
+function posePerson(g, pos, rt, holdAngle){
+  g.setAttribute("transform", `translate(${pos.x.toFixed(1)},352) scale(.95)`);
+  g.style.display = pos.x > 860 ? "none" : "";
+  const flip = g.querySelector(".flip"); flip.setAttribute("transform", pos.v > 0 ? "scale(-1,1)" : "");
+  const sw = pos.v && !reduce ? Math.sin(rt*9)*24 : 0;
+  g.querySelector(".legF").setAttribute("transform", `rotate(${sw} 0 -80)`);
+  g.querySelector(".legB").setAttribute("transform", `rotate(${-sw} 0 -80)`);
+  g.querySelector(".armB").setAttribute("transform", `rotate(${sw*0.7} 0 -132)`);
+  g.querySelector(".armF").setAttribute("transform", `rotate(${pos.v ? -sw*0.5 + 20 : holdAngle} 0 -132)`);
+}
+const nurse = $("nurse"), doctor = $("doctor");
+function blanketPath(chest){
+  const c = chest.toFixed(1);
+  return `M250 283 L250 262 C 268 252, 296 ${c}, 330 ${c} C 372 ${(chest+2).toFixed(1)}, 404 262, 444 266 C 486 270, 520 260, 548 256 C 564 254, 569 270, 569 283 Z`;
+}
+const co = id => $(id);
+function drawScene(t, rt, dt){
+  const breath = reduce ? 0 : Math.sin(rt*Math.PI*2/4.2);
+  const chest = 246 - 2.6*breath;
+  $("blanket").setAttribute("d", blanketPath(chest));
+  $("blanketFold").setAttribute("d", `M250 283 L250 262 C 256 258, 262 256, 270 254 L270 283 Z`);
+  $("arm").setAttribute("transform", `translate(0 ${(-1.2*breath).toFixed(2)})`);
+  $("drip").setAttribute("cy", (216 + (reduce ? 0 : (rt*0.7 % 1)*12)).toFixed(1));
+  const blink = !reduce && (rt % 4.5) < 0.14;
+  $("eye").setAttribute("transform", blink ? "translate(0 243) scale(1 .2) translate(0 -243)" : "");
+
+  $("leads").setAttribute("opacity", t >= 10 ? 1 : 0);
+  $("cgm").setAttribute("opacity", t >= 12 ? 1 : 0);
+  $("cgmGlow").setAttribute("opacity", t >= 12 ? (0.35 + 0.35*Math.abs(Math.sin(rt*2))).toFixed(2) : 0);
+  $("cart").setAttribute("opacity", t >= 16 && t < 34 ? 1 : 0);
+  $("probe").setAttribute("opacity", t >= 18 && t < 32 ? 1 : 0);
+  const sweep = reduce ? 0 : Math.sin(rt*1.6)*14;
+  $("probeBody").setAttribute("transform", `translate(${sweep.toFixed(1)} 0)`);
+  $("beam").setAttribute("transform", `translate(${sweep.toFixed(1)} 0)`);
+  $("beam").setAttribute("opacity", (0.25 + 0.2*Math.abs(Math.sin(rt*5))).toFixed(2));
+  $("cartScan").setAttribute("transform", `rotate(${(Math.sin(rt*2.4)*30).toFixed(1)} 42 9)`);
+  $("sweat").setAttribute("opacity", t >= 54 && t < 68 ? 1 : 0);
+
+  co("coLeads").classList.toggle("on", t >= 10 && t < 20);
+  co("coCgm").classList.toggle("on", t >= 12 && t < 22);
+  co("coEcho").classList.toggle("on", t >= 18 && t < 32);
+  co("coHub").classList.toggle("on", t >= 10 && t < 30);
+  const alerting = t >= 56 && t < 64;
+  co("coAlert").classList.toggle("on", alerting);
+  const pulse = alerting ? 0.5 + 0.5*Math.sin(rt*6) : 0;
+  $("wash").setAttribute("opacity", (alerting ? 0.04 + 0.06*pulse : 0).toFixed(3));
+  $("mAlert").setAttribute("opacity", (alerting ? 0.15 + 0.25*pulse : 0).toFixed(3));
+  $("mBadge").setAttribute("r", alerting ? 7 : 0);
+
+  const n = walk(NURSE, t), d = walk(DOC, t);
+  posePerson(nurse, n, rt, 38); posePerson(doctor, d, rt, 30);
+  nurse.querySelector(".clip").style.display = t < 12 ? "" : "none";
+  nurse.querySelector(".cup").style.display = t >= 58 && t < 70 ? "" : "none";
+
+  // wall monitor
+  const hr = HR(t), leads = t >= 10;
+  $("mHr").textContent = leads ? hr : "--";
+  $("mSpo").textContent = leads ? 97 : "--";
+  $("mGlu").textContent = t >= 12 ? Math.round(reading(Math.floor((t-12)/5)*5+12)) : "--";
+  let dpath = "";
+  for (let i=0;i<120;i++){
+    const ph = ((phase - (119-i)*(hr/60)*0.022) % 1 + 1) % 1;
+    const v = leads ? ecg(ph) : 0;
+    dpath += `${i?"L":"M"}${(10 + i*1.45).toFixed(1)} ${(58 - v*30).toFixed(1)} `;
+  }
+  $("mEcg").setAttribute("d", dpath);
+
+  stepPackets(st.playing ? dt : 0, t, n.x);
+  hubFlash = Math.max(0, hubFlash - dt*2.5);
+  $("hubLed").setAttribute("opacity", (0.35 + 0.65*hubFlash).toFixed(2));
+}
+
+// ---------- AI card ----------
+let barsBuilt = false;
+function drawAI(t){
+  const on = (id, cond, cls = "on") => $(id).classList.toggle(cls, cond);
+  on("nRec", t >= 3); on("nEcg", t >= 10); on("nEcho", t >= 30); on("nCgm", t >= 12);
+  on("eRec", t >= 32 && t < 45); on("eEcg", t >= 32 && t < 45); on("eEcho", t >= 32 && t < 45);
+  on("nFus", t >= 32); on("nFus", t >= 32 && t < 45, "busy");
+  on("eFus", t >= 45 && t < 50); on("nRisk", t >= 45);
+  on("eCgm", t >= 48); on("nFc", t >= 48); on("eFc", t >= 50);
+  on("nHypo", t >= 50); on("nHypo", t >= 56 && t < 64, "alarm");
+  $("tRisk").textContent = t >= 45 ? "Heart risk 71%" : "Heart risk";
+  $("tHypo").textContent = t >= 56 && t < 64 ? "Low at " + clock(HYPO_T) : t >= 64 ? "Resolved" : "Low alert";
+
+  const big = $("riskBig"), note = $("riskNote"), prog = $("riskProg");
+  if (t < 32) { big.textContent = "—"; note.textContent = t < 10 ? "Waiting for ECG and imaging" : t < 30 ? "Waiting for echo images" : "Inputs ready"; prog.hidden = true; }
+  else if (t < 45) { const f = (t-32)/13; big.textContent = "…"; note.textContent = `Fusing 3 data types · ${Math.round(f*100)}%`; prog.hidden = false; prog.firstElementChild.style.width = (f*100).toFixed(0) + "%"; }
+  else { big.textContent = "71%"; note.textContent = "High: significant coronary disease likely. Refer to cardiology."; prog.hidden = true; }
+
+  const fb = $("fcBig"), fn = $("fcNote");
+  if (t < 48) { fb.textContent = "—"; fn.textContent = t < 12 ? "Forecast starts once the CGM has data" : "Collecting readings"; fb.style.color = "var(--glu)"; }
+  else if (t < 56) { fb.textContent = "Falling"; fn.textContent = `Expected ${Math.round(untreated(t+60))} mg/dL in 60 min`; fb.style.color = "var(--glu)"; }
+  else if (t < 64) { fb.textContent = "Low " + clock(HYPO_T); fn.textContent = `Alert sent ${Math.floor(HYPO_T-56)} min before the low`; fb.style.color = "var(--risk)"; }
+  else if (t < 82) { fb.textContent = "Rising"; fn.textContent = "Fast-acting glucose given at " + clock(64); fb.style.color = "var(--glu)"; }
+  else { fb.textContent = "In range"; fn.textContent = `Expected ${Math.round(treated(Math.min(t+60,200)))} mg/dL in 60 min`; fb.style.color = "var(--ecg)"; }
+
+  const show = t >= 45;
+  if (show && !barsBuilt) {
+    const max = 19;
+    $("bars").innerHTML = XAI.map(([name, src, v]) => {
+      return `<div class="bar"><span class="name"><span class="src">${src}</span>${name}</span><span class="track"><i style="background:${v>0?"var(--bar-pos)":"var(--bar-neg)"}" data-w="${(Math.abs(v)/max*100).toFixed(0)}"></i></span><span class="val">${v>0?"+":"−"}${Math.abs(v)}</span></div>`;
+    }).join("") + `<div class="bar" style="margin-top:4px"><span class="name">Baseline 10% + findings</span><span></span><span class="val">71%</span></div>`;
+    barsBuilt = true;
+    requestAnimationFrame(() => requestAnimationFrame(() => document.querySelectorAll("#bars i").forEach(i => i.style.width = i.dataset.w + "%")));
+  } else if (!show && barsBuilt) {
+    $("bars").innerHTML = `<div class="waiting">Appears when the heart model finishes (${clock(45)}).</div>`; barsBuilt = false;
+  }
+}
+
+// ---------- monitor + log + narration ----------
+let lastStage = -1, lastLog = -1;
+function drawPanels(t){
+  const i = stageIdx(t);
+  if (i !== lastStage) {
+    lastStage = i;
+    $("narrTitle").textContent = STAGES[i].name;
+    $("narrText").textContent = STAGES[i].text;
+    $("stagechip").textContent = `Stage ${i+1} of 7`;
+  }
+  segs.forEach((s, k) => {
+    s.classList.toggle("active", k === i);
+    s.classList.toggle("done", k < i);
+    const f = s.firstElementChild;
+    f.style.width = k === i ? ((t - STAGES[k].s)/(STAGES[k].e - STAGES[k].s)*100).toFixed(1) + "%" : "";
+  });
+  tl.setAttribute("aria-valuenow", Math.round(t)); tl.setAttribute("aria-valuetext", clock(t));
+  $("clock").textContent = clock(t);
+  fields.forEach(f => f.classList.toggle("filled", t >= +f.dataset.t));
+
+  const leads = t >= 10;
+  $("leadsoff").hidden = leads;
+  $("hr").textContent = leads ? HR(t) : "--";
+  $("spo").textContent = leads ? 97 : "--";
+  $("bp").textContent = t >= 3 ? (t >= 80 ? "138/86" : "148/92") : "--/--";
+  $("rr").textContent = t >= 3 ? (t >= 56 && t < 70 ? 20 : 16) : "--";
+  $("tmp").textContent = t >= 3 ? "36.8 °C" : "--";
+
+  const shown = EVENTS.filter(e => e[0] <= t);
+  if (shown.length !== lastLog) {
+    const grew = shown.length > lastLog && lastLog >= 0;
+    lastLog = shown.length;
+    $("log").innerHTML = shown.slice().reverse().map((e, k) => `<li class="${grew && k === 0 ? "new" : ""}"><span class="tm">${clock(e[0])}</span><i style="background:var(${COL[e[1]]})"></i><span>${e[2]}</span></li>`).join("");
+    $("logCount").textContent = `${shown.length} of ${EVENTS.length} events`;
+  }
+}
+
+let C = {};
+const alpha = (hex, a) => hex + Math.round(a*255).toString(16).padStart(2,"0");
+function readColors(){ C = {ecg:css("--ecg"), glu:css("--glu"), ai:css("--ai"), risk:css("--risk"), rec:css("--rec"),
+  screen:css("--screen"), screenGrid:css("--screen-grid"), screenText:css("--screen-text"), screenInk:css("--screen-ink"),
+  heat:css("--echo-heat"), sans:css("--font-aspekta")}; }
+
+let rt = 0, lastTs = null;
+function render(force){ drawPanels(st.t); drawGlucose(st.t); drawAI(st.t); drawScene(st.t, rt, 0); drawEcho(st.t, rt); }
+function frame(ts){
+  const dt = lastTs === null ? 0 : Math.min(0.1, (ts - lastTs)/1000); lastTs = ts; rt += dt;
+  if (st.playing) { st.t += dt*SIM_RATE*st.speed; if (st.t >= T_END) { st.t = T_END; st.playing = false; syncPlay(); } }
+  stepEcg(dt, st.t); drawEcg();
+  drawScene(st.t, rt, dt); drawEcho(st.t, rt); drawPanels(st.t); drawGlucose(st.t); drawAI(st.t);
+  requestAnimationFrame(frame);
+}
+function start(){
+  readColors();
+  $("selSpeed").value = String(st.speed);
+  syncPlay();
+  if (reduce) { // fill the ECG once so the still frame has a trace
+    for (let k=0;k<ecgW;k++) stepEcg(0.01, st.t);
+  }
+  render(true);
+  requestAnimationFrame(frame);
+}
+boot({});
+})();
+</script>
+
+</body>
+</html>

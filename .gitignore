@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+glucotwin/data/glucotwin.db
+glucotwin/data/artifacts/
+glucotwin/data/csv/
+glucotwin/data/raw/
+glucotwin/data/real/

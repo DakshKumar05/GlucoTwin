@@ -1,0 +1,948 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bed 7 Patient Journey</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@500;700&family=Source+Sans+3:wght@400;600;700&display=swap">
+<style>
+/* Layout: an illustrated ward room on the left drives the story; live bedside readouts and the AI system sit on the right; one timeline controls both. Single dark "monitoring station" look by choice. */
+:root{
+  --bg:#0A1215; --panel:#101B1F; --panel2:#16242A; --line:#23363D; --fg:#E2ECEE; --muted:#8EA3A9; --faint:#5C7076;
+  --ecg:#3DDC97; --glu:#F5B544; --risk:#FF6B6B; --ai:#6CC7F0; --rec:#C7D3D6;
+  --display:"Barlow Condensed","Arial Narrow",sans-serif;
+  --body:"Source Sans 3","Segoe UI",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+html,body{background:var(--bg);color:var(--fg)}
+body{font-family:var(--body);font-size:15px;line-height:1.45}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+.app{max-width:1440px;margin:0 auto;padding-block:20px 32px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px;margin-bottom:16px}
+h1{font-family:var(--display);font-weight:700;font-size:clamp(28px,4vw,40px);letter-spacing:.01em;margin:0;line-height:1;text-wrap:balance}
+.sub{color:var(--muted);margin:6px 0 0;max-width:68ch}
+.keys{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--muted)}
+.keys span{display:inline-flex;align-items:center;gap:6px}
+.keys i{width:9px;height:9px;border-radius:50%;display:inline-block}
+
+.grid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);gap:16px;align-items:start}
+.col{display:flex;flex-direction:column;gap:16px;min-width:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;min-width:0}
+.card h2{font-family:var(--display);font-weight:600;font-size:15px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 10px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.card h2 .tag{font-family:var(--mono);font-size:11px;letter-spacing:0;text-transform:none;color:var(--faint)}
+
+/* scene */
+.scene{padding:0;overflow:hidden}
+.scene-top{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.clock{font-family:var(--mono);font-weight:700;font-size:22px;color:var(--fg)}
+.where{color:var(--muted);font-size:13px}
+.stagechip{font-family:var(--display);font-weight:600;font-size:14px;letter-spacing:.06em;text-transform:uppercase;background:var(--panel2);border:1px solid var(--line);color:var(--ai);border-radius:999px;padding:3px 10px}
+#scene{display:block;width:100%;height:auto;max-width:100%}
+#scene text{font-family:var(--body)}
+.co{opacity:0;transition:opacity .5s}
+.co.on{opacity:1}
+.fade{transition:opacity .6s}
+
+.narr{padding:14px 16px 16px;border-top:1px solid var(--line)}
+.narr h3{font-family:var(--display);font-weight:700;font-size:24px;margin:0 0 4px;line-height:1.1}
+.narr p{margin:0;max-width:72ch;color:#C9D6D9}
+
+/* controls */
+.controls{display:flex;flex-direction:column;gap:12px}
+.ctl-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+button,select{font:inherit;color:var(--fg);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 12px;cursor:pointer}
+button:hover,select:hover{border-color:var(--faint)}
+button:focus-visible,select:focus-visible,.seg:focus-visible{outline:2px solid var(--ai);outline-offset:2px}
+button.primary{background:var(--ai);color:#06212C;border-color:var(--ai);font-weight:700;min-width:96px}
+.ctl-row label{color:var(--muted);font-size:13px;margin-left:auto}
+.timeline{position:relative;display:flex;gap:3px;height:42px;cursor:pointer;user-select:none}
+.seg{position:relative;flex:var(--w) 1 0;min-width:0;background:var(--panel2);border-radius:6px;overflow:hidden;border:1px solid var(--line);padding:0}
+.seg .fill{position:absolute;inset:0 auto 0 0;width:0;background:rgba(108,199,240,.22)}
+.seg.done .fill{width:100%}
+.seg span{position:relative;display:block;padding:4px 6px;font-size:12px;line-height:1.2;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
+.seg span b{display:block;font-family:var(--mono);font-size:10px;color:var(--faint);font-weight:500}
+.seg.active{border-color:var(--ai)}
+.seg.active span{color:var(--fg)}
+
+/* patient */
+.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 14px;margin:0}
+.fields div{min-width:0}
+.fields dt{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.fields dd{margin:0;font-weight:600;transition:color .4s}
+.fields div:not(.filled) dd{color:var(--faint);font-weight:400}
+.fields div:not(.filled) dd .v{display:none}
+.fields div.filled dd .p{display:none}
+.who{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.who strong{font-family:var(--display);font-size:24px;font-weight:700}
+.who span{color:var(--muted);font-size:13px}
+
+/* monitor */
+.mon{background:#060C0E;border-radius:8px;border:1px solid var(--line);padding:8px 10px}
+.mon-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:stretch}
+.ecgwrap{position:relative;min-width:0}
+#ecg{display:block;width:100%;height:96px}
+.leadsoff{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;color:var(--faint)}
+.vitals{display:flex;flex-direction:column;justify-content:space-between;text-align:right;min-width:86px}
+.vital .lbl{font-family:var(--mono);font-size:10px;color:var(--faint)}
+.vital .num{font-family:var(--display);font-weight:700;font-size:34px;line-height:.95;font-variant-numeric:tabular-nums}
+.vital.hr .num{color:var(--ecg)}
+.vital.spo .num{color:var(--ai);font-size:24px}
+.mon-foot{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:6px;font-family:var(--mono);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.mon-foot b{color:var(--fg);font-weight:500}
+
+/* glucose */
+.gtop{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+.gval{display:flex;align-items:baseline;gap:6px}
+.gval .num{font-family:var(--display);font-weight:700;font-size:40px;line-height:1;color:var(--glu);font-variant-numeric:tabular-nums}
+.gval .unit{color:var(--muted);font-size:13px}
+.gval .arrow{font-size:22px;color:var(--glu)}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;border-radius:999px;padding:3px 10px;border:1px solid var(--line);background:var(--panel2);color:var(--muted)}
+.pill::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
+.pill.ok{color:var(--ecg)}.pill.warn{color:var(--glu)}.pill.bad{color:var(--risk);border-color:rgba(255,107,107,.5);background:rgba(255,107,107,.1)}
+#gchart{display:block;width:100%;height:auto}
+#gchart text{font-family:var(--mono);font-size:10px;fill:var(--muted)}
+
+/* AI */
+.ai-grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px}
+#model{display:block;width:100%;height:auto}
+#model text{font-family:var(--body);font-size:12.5px;fill:var(--muted)}
+#model .node rect{fill:var(--panel2);stroke:var(--line);stroke-width:1.2;transition:stroke .4s,fill .4s}
+#model .node.on rect{stroke:var(--nc,var(--ai))}
+#model .node.on text{fill:var(--fg)}
+#model .node.busy rect{animation:busy 1s ease-in-out infinite}
+#model .node.alarm rect{fill:rgba(255,107,107,.16);stroke:var(--risk)}
+#model .edge{fill:none;stroke:var(--line);stroke-width:1.6;transition:stroke .4s}
+#model .edge.on{stroke:var(--nc,var(--ai));stroke-dasharray:5 5;animation:flow .9s linear infinite}
+@keyframes flow{to{stroke-dashoffset:-20}}
+@keyframes busy{50%{fill:rgba(108,199,240,.18)}}
+.outs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}
+.out{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:0}
+.out .lbl{font-size:12px;color:var(--muted)}
+.out .big{font-family:var(--display);font-weight:700;font-size:32px;line-height:1.05;font-variant-numeric:tabular-nums}
+.out .note{font-size:13px;color:var(--muted)}
+.prog{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin-top:6px}
+.prog i{display:block;height:100%;width:0;background:var(--ai)}
+.echo{display:flex;flex-direction:column;gap:6px;min-width:0}
+#echo{display:block;width:100%;height:auto;aspect-ratio:4/3;max-width:100%;border-radius:8px;background:#000;border:1px solid var(--line)}
+.echo .cap{font-size:12px;color:var(--muted)}
+.xai{margin-top:14px}
+.xai h4{margin:0 0 2px;font-size:14px;font-weight:700}
+.xai .hint{margin:0 0 8px;font-size:13px;color:var(--muted)}
+.bars{display:flex;flex-direction:column;gap:6px}
+.bar{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) 44px;align-items:center;gap:8px;font-size:13px}
+.bar .name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar .src{font-family:var(--mono);font-size:10px;padding:1px 5px;border-radius:4px;margin-right:6px;border:1px solid currentColor}
+.bar .track{height:10px;background:var(--line);border-radius:3px;position:relative;overflow:hidden}
+.bar .track i{position:absolute;top:0;bottom:0;left:0;width:0;border-radius:3px;transition:width 1s cubic-bezier(.2,.7,.2,1)}
+.bar .val{font-family:var(--mono);font-size:12px;text-align:right;font-variant-numeric:tabular-nums}
+.waiting{color:var(--faint);font-size:13px;padding:6px 0}
+
+/* log */
+#log{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px;max-height:330px;overflow:auto}
+#log li{display:grid;grid-template-columns:44px 10px minmax(0,1fr);gap:8px;align-items:baseline;padding:5px 4px;border-radius:6px;font-size:13.5px}
+#log li .tm{font-family:var(--mono);font-size:12px;color:var(--muted)}
+#log li i{width:8px;height:8px;border-radius:50%;display:inline-block;transform:translateY(-1px)}
+#log li:first-child{background:var(--panel2)}
+#log li.new{animation:flash 1.2s ease-out}
+@keyframes flash{from{background:rgba(108,199,240,.25)}}
+
+footer.fine{margin-top:16px;color:var(--faint);font-size:12.5px;max-width:90ch}
+
+@media (max-width:980px){
+  .grid{display:flex;flex-direction:column}
+  .col{display:contents}
+  .o1{order:1}.o2{order:2}.o3{order:3}.o4{order:4}.o5{order:5}.o6{order:6}.o7{order:7}
+}
+@media (max-width:620px){
+  .ai-grid{grid-template-columns:minmax(0,1fr)}
+  .seg span{font-size:0}
+  .seg span b{font-size:10px}
+  .ctl-row label{margin-left:0}
+  .bar{grid-template-columns:minmax(0,1fr) 70px 40px}
+}
+@media (prefers-reduced-motion:reduce){
+  #model .edge.on,#model .node.busy rect,#log li.new{animation:none}
+  .bar .track i{transition:none}
+}
+body{margin:0}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="top">
+    <div>
+      <h1>Bed 7 Patient Journey</h1>
+      <p class="sub">One simulated patient, two AI systems: a multimodal model that predicts heart disease risk, and a glucose forecaster that warns before a low. Press play, or jump to any stage.</p>
+    </div>
+    <div class="keys" aria-label="Colour key">
+      <span><i style="background:var(--rec)"></i>Clinical record</span>
+      <span><i style="background:var(--ecg)"></i>ECG</span>
+      <span><i style="background:var(--ai)"></i>Imaging and AI</span>
+      <span><i style="background:var(--glu)"></i>Glucose (CGM)</span>
+      <span><i style="background:var(--risk)"></i>Risk and alerts</span>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="col">
+      <section class="card scene o1" aria-label="Ward animation">
+        <div class="scene-top">
+          <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span class="clock" id="clock">08:00</span><span class="where">Cardiac ward · Bed 7</span></div>
+          <span class="stagechip" id="stagechip">Stage 1 of 7</span>
+        </div>
+        <svg id="scene" viewBox="0 0 800 470" role="img" aria-label="Animated hospital room: a patient in bed with ECG leads and a glucose sensor, a bedside monitor, an IV pole, and a nurse and doctor who come and go.">
+          <defs>
+            <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9FD0EA"/><stop offset="1" stop-color="#E4F1F2"/></linearGradient>
+            <linearGradient id="wallg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#D3DFDD"/><stop offset="1" stop-color="#C3D1CF"/></linearGradient>
+            <radialGradient id="glow"><stop offset="0" stop-color="#F5B544" stop-opacity=".9"/><stop offset="1" stop-color="#F5B544" stop-opacity="0"/></radialGradient>
+            <clipPath id="monclip"><rect x="0" y="0" width="190" height="112" rx="8"/></clipPath>
+          </defs>
+          <!-- room -->
+          <rect x="0" y="0" width="800" height="345" fill="url(#wallg)"/>
+          <rect x="0" y="345" width="800" height="125" fill="#A9B8B6"/>
+          <rect x="0" y="341" width="800" height="6" fill="#8E9E9C"/>
+          <g stroke="#9DADAB" stroke-width="1.5">
+            <line x1="0" y1="390" x2="800" y2="390"/><line x1="0" y1="440" x2="800" y2="440"/>
+            <line x1="120" y1="347" x2="60" y2="470"/><line x1="320" y1="347" x2="300" y2="470"/><line x1="520" y1="347" x2="540" y2="470"/><line x1="720" y1="347" x2="780" y2="470"/>
+          </g>
+          <!-- window -->
+          <g>
+            <rect x="565" y="48" width="190" height="150" rx="4" fill="url(#sky)"/>
+            <circle cx="712" cy="86" r="16" fill="#FFF3C9" opacity=".9"/>
+            <path d="M565 170 q30 -22 60 -6 q28 -20 60 -4 q36 -18 70 2 v36 h-190z" fill="#B9D6C9"/>
+            <rect x="565" y="48" width="190" height="150" rx="4" fill="none" stroke="#8FA2A0" stroke-width="7"/>
+            <line x1="660" y1="48" x2="660" y2="198" stroke="#8FA2A0" stroke-width="5"/>
+            <line x1="565" y1="123" x2="755" y2="123" stroke="#8FA2A0" stroke-width="5"/>
+            <rect x="556" y="196" width="208" height="8" rx="2" fill="#9AACAA"/>
+          </g>
+          <!-- wall monitor -->
+          <g transform="translate(48,36)">
+            <rect x="-4" y="-4" width="198" height="120" rx="10" fill="#5F6F73"/>
+            <g clip-path="url(#monclip)">
+              <rect width="190" height="112" fill="#071012"/>
+              <text x="10" y="18" font-size="10" fill="#5C7076">II</text>
+              <path id="mEcg" d="" fill="none" stroke="#3DDC97" stroke-width="1.6"/>
+              <text x="10" y="96" font-size="11" fill="#3DDC97">HR</text>
+              <text id="mHr" x="30" y="99" font-size="22" font-weight="700" fill="#3DDC97">--</text>
+              <text x="78" y="96" font-size="11" fill="#6CC7F0">SpO₂</text>
+              <text id="mSpo" x="106" y="99" font-size="18" font-weight="700" fill="#6CC7F0">--</text>
+              <text x="138" y="80" font-size="10" fill="#F5B544">GLU</text>
+              <text id="mGlu" x="138" y="99" font-size="18" font-weight="700" fill="#F5B544">--</text>
+              <rect id="mAlert" x="0" y="0" width="190" height="112" fill="#FF6B6B" opacity="0"/>
+            </g>
+            <circle cx="183" cy="-9" r="0" fill="#FF6B6B" id="mBadge"/>
+          </g>
+          <!-- AI gateway on ceiling -->
+          <g id="hub" transform="translate(400,24)">
+            <line x1="0" y1="-24" x2="0" y2="-10" stroke="#7E8E92" stroke-width="3"/>
+            <rect x="-34" y="-10" width="68" height="24" rx="7" fill="#2A3A40"/>
+            <circle id="hubLed" cx="-20" cy="2" r="4" fill="#6CC7F0" opacity=".35"/>
+            <text x="-10" y="7" font-size="13" font-weight="700" fill="#DDE8EA">AI hub</text>
+          </g>
+          <!-- echo cart -->
+          <g id="cart" class="fade" opacity="0" transform="translate(586,212)">
+            <rect x="0" y="0" width="84" height="58" rx="5" fill="#2F3D42"/>
+            <rect x="5" y="5" width="74" height="48" rx="3" fill="#000"/>
+            <path d="M42 9 L18 47 Q42 54 66 47 Z" fill="#3A4447"/>
+            <path id="cartScan" d="M42 9 L42 50" stroke="#6CC7F0" stroke-width="1.5" opacity=".9"/>
+            <rect x="10" y="58" width="64" height="62" rx="5" fill="#C8D2D3"/>
+            <rect x="16" y="66" width="52" height="8" rx="2" fill="#9EABAD"/>
+            <line x1="42" y1="120" x2="42" y2="180" stroke="#8C9A9C" stroke-width="5"/>
+            <line x1="14" y1="182" x2="70" y2="182" stroke="#8C9A9C" stroke-width="5"/>
+            <circle cx="16" cy="188" r="6" fill="#4C5A5E"/><circle cx="68" cy="188" r="6" fill="#4C5A5E"/>
+          </g>
+          <!-- people (behind the bed) -->
+          <g id="doctor" transform="translate(900,352) scale(.95)">
+            <g class="flip">
+              <g class="legB"><rect x="-10" y="-80" width="9" height="78" rx="4" fill="#3B4650"/><ellipse cx="-7" cy="-2" rx="8" ry="4" fill="#222"/></g>
+              <g class="legF"><rect x="1" y="-80" width="9" height="78" rx="4" fill="#46525C"/><ellipse cx="4" cy="-2" rx="8" ry="4" fill="#222"/></g>
+              <g class="armB"><rect x="-5" y="-136" width="10" height="52" rx="5" fill="#E8EEF0"/><circle cx="0" cy="-84" r="5" fill="#A86E4A"/></g>
+              <path d="M-20 -128 Q-20 -142 -8 -142 L8 -142 Q20 -142 20 -128 L22 -44 L-22 -44 Z" fill="#F4F7F8"/>
+              <path d="M-6 -142 L0 -120 L6 -142" fill="#7FA6C2"/>
+              <path d="M-9 -138 Q-14 -112 -4 -104 M9 -138 Q14 -112 4 -104" stroke="#2C3A40" stroke-width="2" fill="none"/>
+              <circle cx="0" cy="-102" r="3.5" fill="#9AA7AC"/>
+              <rect x="-2" y="-150" width="8" height="10" fill="#A86E4A"/>
+              <circle cx="0" cy="-160" r="14" fill="#A86E4A"/>
+              <path d="M-14 -162 Q-12 -178 2 -176 Q14 -175 14 -160 Q8 -168 -2 -168 Q-10 -166 -14 -162Z" fill="#7C7C7C"/>
+              <circle cx="-8" cy="-161" r="1.6" fill="#1E1E1E"/>
+              <path d="M-14 -158 l-3 4 l3 1" fill="#A86E4A"/>
+              <g class="armF"><rect x="-5" y="-136" width="10" height="50" rx="5" fill="#E8EEF0"/><circle cx="0" cy="-86" r="5" fill="#A86E4A"/>
+                <g class="item tablet"><rect x="-14" y="-102" width="16" height="22" rx="2" fill="#1E2A30"/><rect x="-12" y="-100" width="12" height="16" rx="1" fill="#6CC7F0" opacity=".85"/></g>
+              </g>
+            </g>
+          </g>
+          <g id="nurse" transform="translate(470,352) scale(.95)">
+            <g class="flip">
+              <g class="legB"><rect x="-10" y="-80" width="9" height="78" rx="4" fill="#1F6E68"/><ellipse cx="-7" cy="-2" rx="8" ry="4" fill="#F1F1F1"/></g>
+              <g class="legF"><rect x="1" y="-80" width="9" height="78" rx="4" fill="#24807A"/><ellipse cx="4" cy="-2" rx="8" ry="4" fill="#F1F1F1"/></g>
+              <g class="armB"><rect x="-5" y="-134" width="10" height="46" rx="5" fill="#2A938C"/><circle cx="0" cy="-88" r="5" fill="#8E5A3C"/></g>
+              <path d="M-18 -128 Q-18 -140 -6 -140 L6 -140 Q18 -140 18 -128 L18 -72 L-18 -72 Z" fill="#2E9C93"/>
+              <path d="M-7 -140 L0 -128 L7 -140" fill="#E9F3F2"/>
+              <rect x="6" y="-122" width="8" height="10" rx="1" fill="#E9F3F2"/>
+              <rect x="-3" y="-148" width="7" height="9" fill="#8E5A3C"/>
+              <circle cx="0" cy="-158" r="14" fill="#8E5A3C"/>
+              <path d="M-14 -160 Q-12 -176 2 -175 Q15 -173 14 -156 Q9 -166 -3 -167 Q-11 -166 -14 -160Z" fill="#1E1714"/>
+              <circle cx="12" cy="-163" r="7" fill="#1E1714"/>
+              <circle cx="-8" cy="-159" r="1.6" fill="#1E1E1E"/>
+              <path d="M-14 -156 l-3 4 l3 1" fill="#8E5A3C"/>
+              <g class="armF"><rect x="-5" y="-134" width="10" height="46" rx="5" fill="#2A938C"/><circle cx="0" cy="-88" r="5" fill="#8E5A3C"/>
+                <g class="item clip"><rect x="-16" y="-104" width="16" height="22" rx="2" fill="#B98B57"/><rect x="-14" y="-100" width="12" height="16" fill="#FAFAF5"/><rect x="-11" y="-106" width="6" height="4" fill="#666"/></g>
+                <g class="item cup"><path d="M-13 -100 h12 l-2 15 h-8z" fill="#F5F7F8"/><rect x="-12" y="-98" width="10" height="5" fill="#F5B544"/></g>
+              </g>
+            </g>
+          </g>
+          <!-- IV pole -->
+          <g>
+            <line x1="22" y1="164" x2="22" y2="410" stroke="#8C9A9C" stroke-width="4"/>
+            <line x1="4" y1="410" x2="40" y2="410" stroke="#8C9A9C" stroke-width="4"/>
+            <path d="M8 164 h28" stroke="#8C9A9C" stroke-width="3"/>
+            <rect x="9" y="168" width="26" height="42" rx="7" fill="#E9F4F6" stroke="#B4C3C6"/>
+            <rect x="13" y="184" width="18" height="22" rx="4" fill="#CFE6EC"/>
+            <rect x="18" y="212" width="8" height="18" rx="3" fill="#E9F4F6" stroke="#B4C3C6"/>
+            <circle id="drip" cx="22" cy="218" r="2" fill="#7FB8C9"/>
+            <path d="M22 230 C 40 330, 300 300, 368 268" stroke="#C6D6DA" stroke-width="2" fill="none"/>
+          </g>
+          <!-- bed -->
+          <g>
+            <rect x="140" y="214" width="16" height="124" rx="5" fill="#7F9094"/>
+            <rect x="566" y="248" width="13" height="88" rx="5" fill="#7F9094"/>
+            <rect x="150" y="302" width="424" height="16" rx="4" fill="#71838A"/>
+            <line x1="170" y1="318" x2="170" y2="398" stroke="#71838A" stroke-width="6"/>
+            <line x1="552" y1="318" x2="552" y2="398" stroke="#71838A" stroke-width="6"/>
+            <circle cx="170" cy="404" r="8" fill="#3E4A4E"/><circle cx="552" cy="404" r="8" fill="#3E4A4E"/>
+            <rect x="150" y="281" width="420" height="23" rx="6" fill="#F3F6F6"/>
+            <rect x="380" y="300" width="70" height="14" rx="2" fill="#E7EDEE"/>
+            <text x="388" y="311" font-size="9" fill="#556">BED 7</text>
+          </g>
+          <!-- patient -->
+          <g id="patient">
+            <ellipse cx="200" cy="276" rx="44" ry="12" fill="#FBFCFC"/>
+            <rect x="226" y="250" width="40" height="33" rx="6" fill="#9EC3D6"/>
+            <path d="M226 258 q8 -4 14 0 v-8 h-14z" fill="#B97B57"/>
+            <ellipse cx="204" cy="258" rx="26" ry="20" fill="#B97B57"/>
+            <path d="M180 262 Q176 244 192 238 Q200 236 204 240 Q196 246 190 262 Q186 272 182 270Z" fill="#5A524D"/>
+            <path d="M186 268 Q196 278 214 277 L200 270Z" fill="#5A524D"/>
+            <path d="M204 238 Q208 230 213 238" fill="#B97B57" stroke="#9C6444" stroke-width="1"/>
+            <g id="eye"><ellipse cx="198" cy="243" rx="3.4" ry="1.6" fill="#2B1E18"/></g>
+            <path d="M218 246 q4 1 6 -1" stroke="#7A4A32" stroke-width="1.5" fill="none"/>
+            <ellipse cx="196" cy="259" rx="4" ry="5" fill="#A86C4C"/>
+            <g id="sweat" opacity="0"><path d="M210 232 q2 4 0 6 q-2 -2 0 -6z" fill="#BFE6F5"/><path d="M220 236 q2 4 0 6 q-2 -2 0 -6z" fill="#BFE6F5"/></g>
+            <path id="blanket" d="" fill="#6E9DB3"/>
+            <path id="blanketFold" d="" fill="#E6EEF1"/>
+            <g id="arm">
+              <path d="M262 262 L296 263" stroke="#9EC3D6" stroke-width="16" stroke-linecap="round"/>
+              <path d="M292 263 L368 267" stroke="#B97B57" stroke-width="12" stroke-linecap="round"/>
+              <circle cx="372" cy="267" r="7.5" fill="#B97B57"/>
+              <g id="cgm" class="fade" opacity="0">
+                <circle id="cgmGlow" cx="284" cy="255" r="14" fill="url(#glow)" opacity=".5"/>
+                <circle cx="284" cy="256" r="6.5" fill="#FFFFFF" stroke="#F5B544" stroke-width="2"/>
+                <circle cx="284" cy="256" r="2" fill="#F5B544"/>
+              </g>
+            </g>
+            <g id="leads" class="fade" opacity="0">
+              <path d="M306 250 C 300 190, 260 170, 236 150" stroke="#E7E1C9" stroke-width="1.8" fill="none"/>
+              <path d="M326 248 C 318 186, 262 168, 238 148" stroke="#E1A8A8" stroke-width="1.8" fill="none"/>
+              <path d="M346 251 C 336 182, 264 166, 240 146" stroke="#B9D8B0" stroke-width="1.8" fill="none"/>
+              <circle cx="306" cy="250" r="4" fill="#FFF" stroke="#8C9A9C"/><circle cx="326" cy="248" r="4" fill="#FFF" stroke="#8C9A9C"/><circle cx="346" cy="251" r="4" fill="#FFF" stroke="#8C9A9C"/>
+            </g>
+          </g>
+          <!-- echo probe -->
+          <g id="probe" class="fade" opacity="0">
+            <path id="beam" d="M326 236 L296 262 L356 262 L334 236 Z" fill="#6CC7F0" opacity=".35"/>
+            <rect id="probeBody" x="324" y="214" width="12" height="24" rx="5" fill="#E8EEF0" stroke="#8C9A9C"/>
+            <path d="M330 214 C 360 170, 540 170, 610 260" stroke="#3A4A50" stroke-width="2" fill="none"/>
+          </g>
+          <g id="packets"></g>
+          <!-- callouts -->
+          <g class="co" id="coLeads"><rect x="268" y="176" width="92" height="22" rx="5" fill="#0A1215" opacity=".85"/><text x="276" y="191" font-size="12" fill="#3DDC97">ECG leads</text></g>
+          <g class="co" id="coCgm"><rect x="228" y="296" width="104" height="22" rx="5" fill="#0A1215" opacity=".85"/><text x="236" y="311" font-size="12" fill="#F5B544">CGM on arm</text><line x1="270" y1="296" x2="282" y2="266" stroke="#F5B544" stroke-width="1.5"/></g>
+          <g class="co" id="coEcho"><rect x="350" y="196" width="128" height="22" rx="5" fill="#0A1215" opacity=".85"/><text x="358" y="211" font-size="12" fill="#6CC7F0">Echocardiogram</text></g>
+          <g class="co" id="coHub"><rect x="440" y="16" width="160" height="22" rx="5" fill="#0A1215" opacity=".85"/><text x="448" y="31" font-size="12" fill="#C7D3D6">Data streams to the AI</text></g>
+          <g class="co" id="coAlert"><rect x="250" y="40" width="300" height="34" rx="8" fill="#FF6B6B"/><text x="400" y="62" font-size="15" font-weight="700" fill="#2A0909" text-anchor="middle">Low glucose predicted at 09:34</text></g>
+          <rect id="wash" x="0" y="0" width="800" height="470" fill="#FF6B6B" opacity="0" pointer-events="none"/>
+        </svg>
+        <div class="narr" aria-live="polite">
+          <h3 id="narrTitle">Admission</h3>
+          <p id="narrText"></p>
+        </div>
+      </section>
+
+      <section class="card controls o2" aria-label="Playback">
+        <div class="ctl-row">
+          <button class="primary" id="btnPlay" type="button">Pause</button>
+          <button id="btnPrev" type="button" aria-label="Previous stage">◀ Stage</button>
+          <button id="btnNext" type="button" aria-label="Next stage">Stage ▶</button>
+          <button id="btnRestart" type="button">Restart</button>
+          <label for="selSpeed">Speed
+            <select id="selSpeed">
+              <option value="0.5">0.5×</option>
+              <option value="1" selected>1×</option>
+              <option value="2">2×</option>
+              <option value="4">4×</option>
+            </select>
+          </label>
+        </div>
+        <div class="timeline" id="timeline" role="slider" aria-label="Simulation time" aria-valuemin="0" aria-valuemax="120" aria-valuenow="0" tabindex="0"></div>
+      </section>
+
+      <section class="card o5" aria-label="AI system">
+        <h2>Ward AI system <span class="tag">illustrative model outputs</span></h2>
+        <div class="ai-grid">
+          <div style="min-width:0">
+            <svg id="model" viewBox="0 0 560 196" role="img" aria-label="Model diagram: clinical record, ECG and echo images feed a multimodal fusion model that outputs heart risk; CGM readings feed a glucose forecaster that outputs a low-glucose alert.">
+              <path class="edge" id="eRec" d="M140 27 C 175 27, 180 62, 210 66"/>
+              <path class="edge" id="eEcg" d="M140 69 C 175 69, 180 75, 210 75"/>
+              <path class="edge" id="eEcho" d="M140 111 C 175 111, 180 86, 210 84"/>
+              <path class="edge" id="eCgm" d="M140 163 C 175 163, 180 165, 210 165"/>
+              <path class="edge" id="eFus" d="M360 75 C 390 75, 390 75, 420 75"/>
+              <path class="edge" id="eFc" d="M360 165 C 390 165, 390 165, 420 165"/>
+              <g class="node" id="nRec" style="--nc:var(--rec)"><rect x="10" y="12" width="130" height="30" rx="7"/><text x="22" y="32">Clinical record</text></g>
+              <g class="node" id="nEcg" style="--nc:var(--ecg)"><rect x="10" y="54" width="130" height="30" rx="7"/><text x="22" y="74">ECG signal</text></g>
+              <g class="node" id="nEcho" style="--nc:var(--ai)"><rect x="10" y="96" width="130" height="30" rx="7"/><text x="22" y="116">Echo images</text></g>
+              <g class="node" id="nCgm" style="--nc:var(--glu)"><rect x="10" y="148" width="130" height="30" rx="7"/><text x="22" y="168">CGM readings</text></g>
+              <g class="node" id="nFus"><rect x="210" y="40" width="150" height="70" rx="9"/><text x="224" y="70">Multimodal fusion</text><text x="224" y="88">model</text></g>
+              <g class="node" id="nFc" style="--nc:var(--glu)"><rect x="210" y="146" width="150" height="38" rx="9"/><text x="224" y="170">Glucose forecaster</text></g>
+              <g class="node" id="nRisk" style="--nc:var(--risk)"><rect x="420" y="55" width="130" height="40" rx="9"/><text x="432" y="80" id="tRisk">Heart risk</text></g>
+              <g class="node" id="nHypo" style="--nc:var(--glu)"><rect x="420" y="146" width="130" height="38" rx="9"/><text x="432" y="170" id="tHypo">Low alert</text></g>
+            </svg>
+            <div class="outs">
+              <div class="out">
+                <div class="lbl">Heart disease risk</div>
+                <div class="big" id="riskBig" style="color:var(--risk)">—</div>
+                <div class="note" id="riskNote">Waiting for ECG and imaging</div>
+                <div class="prog" id="riskProg" hidden><i></i></div>
+              </div>
+              <div class="out">
+                <div class="lbl">Glucose, next 60 min</div>
+                <div class="big" id="fcBig" style="color:var(--glu)">—</div>
+                <div class="note" id="fcNote">Forecast starts once the CGM has data</div>
+              </div>
+            </div>
+          </div>
+          <div class="echo">
+            <canvas id="echo" width="320" height="240" aria-label="Echocardiogram view with explanation heat map"></canvas>
+            <div class="cap" id="echoCap">No images yet</div>
+          </div>
+        </div>
+        <div class="xai">
+          <h4>Why the model says high risk</h4>
+          <p class="hint">Each finding's contribution in percentage points, added to a 10% baseline. The doctor reviews these before acting.</p>
+          <div class="bars" id="bars"><div class="waiting">Appears when the heart model finishes (08:45).</div></div>
+        </div>
+      </section>
+    </div>
+
+    <div class="col">
+      <section class="card o3" aria-label="Patient">
+        <h2>Patient <span class="tag">simulated</span></h2>
+        <div class="who"><strong>Anil Verma</strong><span>58 · male · MRN 7-20417</span></div>
+        <dl class="fields" id="fields">
+          <div data-t="0.5"><dt>Reason for admission</dt><dd><span class="v">Chest discomfort on exertion</span><span class="p">…</span></dd></div>
+          <div data-t="1.5"><dt>History</dt><dd><span class="v">Type 2 diabetes, 11 yrs</span><span class="p">…</span></dd></div>
+          <div data-t="3"><dt>Blood pressure</dt><dd><span class="v">148/92 mmHg</span><span class="p">…</span></dd></div>
+          <div data-t="4"><dt>LDL cholesterol</dt><dd><span class="v">172 mg/dL</span><span class="p">…</span></dd></div>
+          <div data-t="5"><dt>HbA1c</dt><dd><span class="v">8.1%</span><span class="p">…</span></dd></div>
+          <div data-t="5"><dt>Insulin</dt><dd><span class="v">Rapid-acting, given 08:05</span><span class="p">…</span></dd></div>
+          <div data-t="7"><dt>Diet</dt><dd><span class="v">Nil by mouth until echo</span><span class="p">…</span></dd></div>
+          <div data-t="7"><dt>Smoking</dt><dd><span class="v">Never</span><span class="p">…</span></dd></div>
+        </dl>
+      </section>
+
+      <section class="card o4" aria-label="Bedside monitor">
+        <h2>Bedside monitor <span class="tag">lead II · 25 mm/s</span></h2>
+        <div class="mon">
+          <div class="mon-row">
+            <div class="ecgwrap"><canvas id="ecg"></canvas><div class="leadsoff" id="leadsoff">Leads off</div></div>
+            <div class="vitals">
+              <div class="vital hr"><div class="lbl">HR bpm</div><div class="num" id="hr">--</div></div>
+              <div class="vital spo"><div class="lbl">SpO₂ %</div><div class="num" id="spo">--</div></div>
+            </div>
+          </div>
+          <div class="mon-foot"><span>NIBP <b id="bp">--/--</b></span><span>RR <b id="rr">--</b></span><span>Temp <b id="tmp">--</b></span></div>
+        </div>
+      </section>
+
+      <section class="card o4" aria-label="Glucose">
+        <h2>Glucose · CGM <span class="tag">reading every 5 min</span></h2>
+        <div class="gtop">
+          <div class="gval"><span class="num" id="gNum">--</span><span class="arrow" id="gArrow"></span><span class="unit">mg/dL</span></div>
+          <span class="pill" id="gPill">Sensor not attached</span>
+        </div>
+        <svg id="gchart" viewBox="0 0 400 210" role="img" aria-label="Glucose readings over time with the AI forecast and a 70 mg/dL low threshold">
+          <g id="gAxes"></g><g id="gData"></g>
+        </svg>
+      </section>
+
+      <section class="card o6" aria-label="Event log">
+        <h2>Event log <span class="tag" id="logCount">0 events</span></h2>
+        <ol id="log"></ol>
+      </section>
+    </div>
+  </div>
+
+  <footer class="fine">Simulated patient and illustrative model outputs for teaching and demonstration. Not a medical device, and not clinical advice. The glucose forecaster represents a model trained on public CGM data such as GlucoFM-Bench. Heart risk contributions are SHAP-style attributions made up for this demo.</footer>
+</div>
+
+<script>
+(() => {
+const $ = id => document.getElementById(id);
+const NS = "http://www.w3.org/2000/svg";
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const T_END = 120, SIM_RATE = 2; // sim minutes per real second at 1x
+
+const STAGES = [
+  {s:0,  e:10,  name:"Admission", text:"Anil, 58, arrives on the cardiac ward with chest discomfort. He has type 2 diabetes and uses insulin. The nurse records his history, blood pressure and blood test results, and this record becomes the AI's first input."},
+  {s:10, e:18,  name:"Sensors on", text:"ECG leads go on his chest and a continuous glucose monitor (CGM) goes on his upper arm. Both start streaming to the ward's AI hub: the ECG continuously, glucose every 5 minutes."},
+  {s:18, e:32,  name:"Heart imaging", text:"An echocardiogram scans his heart. He must stay nil by mouth for the scan, but his usual insulin dose was already given at 08:05. That combination will matter later."},
+  {s:32, e:48,  name:"Heart risk AI", text:"The multimodal model combines the clinical record, the ECG and the echo images. It estimates a 71% risk of significant coronary artery disease, and shows which findings drove that score."},
+  {s:48, e:60,  name:"Glucose forecast", text:"The glucose forecaster looks at the last readings and predicts the next hour. With insulin on board and no food, it expects glucose to drop below 70 mg/dL at about 09:34 and raises an alert."},
+  {s:60, e:80,  name:"Alert and care", text:"The alert reaches the nurse 38 minutes before the predicted low. She gives 15 g of fast-acting glucose now that the scan is done. The cardiologist reviews the AI's heart report and its explanation."},
+  {s:80, e:120, name:"Outcome", text:"Glucose rises and stays in range, so the low never happens. The doctor confirms the plan: stress test, cardiology follow-up and a statin review. Clinicians make every decision; the AI flags risks early and explains them."}
+];
+
+const EVENTS = [
+  [0,  "rec", "Admitted to Bed 7 with chest discomfort"],
+  [3,  "rec", "Vitals and labs entered: BP 148/92, LDL 172, HbA1c 8.1%"],
+  [5,  "glu", "Usual rapid-acting insulin given"],
+  [7,  "rec", "Nil by mouth until echocardiogram"],
+  [10, "ecg", "ECG leads attached, HR 88, ST depression noted"],
+  [12, "glu", "CGM sensor started"],
+  [18, "ai",  "Echocardiogram started"],
+  [30, "ai",  "Echo images sent to AI hub"],
+  [32, "ai",  "Heart model fusing record, ECG and echo"],
+  [45, "risk","Heart risk 71% (high), explanation ready"],
+  [50, "glu", "Glucose forecast updated: falling"],
+  [56, "risk","ALERT: low glucose predicted at 09:34"],
+  [62, "rec", "Nurse at bedside, patient sweaty and shaky"],
+  [64, "glu", "15 g fast-acting glucose given"],
+  [69, "ai",  "Cardiologist reviewing AI heart report"],
+  [78, "rec", "Plan: stress test, cardiology follow-up, statin review"],
+  [82, "glu", "New forecast: stays in range"],
+  [95, "ecg", "HR settled at 84, patient comfortable"]
+];
+const COL = {rec:"--rec", ecg:"--ecg", ai:"--ai", glu:"--glu", risk:"--risk"};
+
+const XAI = [
+  ["ST depression", "ECG", 19],
+  ["Thickened LV wall", "Echo", 14],
+  ["LDL 172 mg/dL", "Record", 11],
+  ["Age 58", "Record", 8],
+  ["Diabetes, HbA1c 8.1%", "Record", 7],
+  ["BP 148/92", "Record", 6],
+  ["Never smoked", "Record", -4]
+];
+
+// ---------- clinical model of glucose ----------
+const untreated = t => t < 25 ? 150 - 0.15*t : 40 + (146.25-40)*Math.exp(-(t-25)/55);
+const treated = t => t < 64 ? untreated(t) : untreated(t) + 50*(1-Math.exp(-(t-64)/15));
+const noise = k => 2.5*Math.sin(k*1.7) + 1.5*Math.sin(k*0.37+1);
+const reading = k => treated(k) + noise(k);
+const HYPO_T = (() => { for (let t=25; t<200; t+=0.1) if (untreated(t) < 70) return t; })();
+const clock = t => { const m = 480 + Math.floor(t); return String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0"); };
+const HR = t => t < 56 ? 88 : t < 70 ? 104 : t < 90 ? 94 : 84;
+
+// ---------- state ----------
+const st = {t:0, playing:!reduce, speed:1};
+function boot(d){
+  if (d && typeof d.t === "number") { st.t = d.t; st.speed = d.speed || 1; st.playing = !!d.playing; }
+  start();
+}
+
+// ---------- timeline ----------
+const tl = $("timeline");
+STAGES.forEach((s,i) => {
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "seg"; b.style.setProperty("--w", s.e - s.s);
+  b.innerHTML = `<div class="fill"></div><span><b>${clock(s.s)}</b>${i+1}. ${s.name}</span>`;
+  b.addEventListener("click", ev => { ev.stopPropagation(); jump(s.s + 0.01); });
+  b.setAttribute("aria-label", `Stage ${i+1}: ${s.name}, starts ${clock(s.s)}`);
+  tl.appendChild(b);
+});
+const segs = [...tl.children];
+tl.addEventListener("keydown", e => {
+  if (e.key === "ArrowRight") { jump(Math.min(T_END, st.t + 5)); e.preventDefault(); }
+  if (e.key === "ArrowLeft")  { jump(Math.max(0, st.t - 5)); e.preventDefault(); }
+});
+
+const stageIdx = t => { for (let i=STAGES.length-1;i>=0;i--) if (t >= STAGES[i].s) return i; return 0; };
+function jump(t){ st.t = t; clearPackets(); render(true); }
+
+$("btnPlay").onclick = () => { if (st.t >= T_END) st.t = 0; st.playing = !st.playing; syncPlay(); };
+$("btnRestart").onclick = () => { jump(0); st.playing = true; syncPlay(); };
+$("btnPrev").onclick = () => { const i = stageIdx(st.t); const into = st.t - STAGES[i].s; jump(STAGES[into > 2 || i === 0 ? i : i-1].s + 0.01); };
+$("btnNext").onclick = () => { const i = stageIdx(st.t); if (i < STAGES.length-1) jump(STAGES[i+1].s + 0.01); };
+$("selSpeed").onchange = e => { st.speed = +e.target.value; };
+function syncPlay(){ $("btnPlay").textContent = st.playing ? "Pause" : (st.t >= T_END ? "Replay" : "Play"); }
+document.addEventListener("keydown", e => { if (e.code === "Space" && !/INPUT|SELECT|BUTTON/.test(document.activeElement.tagName)) { e.preventDefault(); $("btnPlay").click(); } });
+
+// ---------- patient fields ----------
+const fields = [...document.querySelectorAll("#fields > div")];
+
+// ---------- ECG ----------
+const gau = (x,m,s,a) => a*Math.exp(-((x-m)**2)/(2*s*s));
+const ecg = p => gau(p,.12,.025,.12) + gau(p,.21,.008,-.12) + gau(p,.235,.011,1) + gau(p,.26,.01,-.28) + gau(p,.33,.04,-.07) + gau(p,.47,.045,.24);
+const ecgC = $("ecg"), ex = ecgC.getContext("2d");
+let ecgW = 0, ecgH = 0, buf = null, head = 0, phase = 0, pxAcc = 0;
+function sizeEcg(){
+  const r = ecgC.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  ecgW = Math.max(60, Math.round(r.width)); ecgH = Math.max(40, Math.round(r.height));
+  ecgC.width = ecgW*dpr; ecgC.height = ecgH*dpr; ex.setTransform(dpr,0,0,dpr,0,0);
+  buf = new Float32Array(ecgW).fill(NaN); head = 0;
+}
+new ResizeObserver(sizeEcg).observe(ecgC); sizeEcg();
+function stepEcg(dt, t){
+  const pxs = 100, hr = HR(t), on = t >= 10;
+  pxAcc += dt*pxs;
+  while (pxAcc >= 1) { pxAcc -= 1; phase = (phase + hr/60/pxs) % 1; buf[head] = on ? ecg(phase) + (Math.random()-.5)*.025 : 0; head = (head+1) % ecgW; }
+}
+function drawEcg(){
+  ex.clearRect(0,0,ecgW,ecgH);
+  ex.strokeStyle = "rgba(61,220,151,.08)"; ex.lineWidth = 1; ex.beginPath();
+  for (let x=0;x<ecgW;x+=20){ ex.moveTo(x+.5,0); ex.lineTo(x+.5,ecgH); }
+  for (let y=0;y<ecgH;y+=20){ ex.moveTo(0,y+.5); ex.lineTo(ecgW,y+.5); }
+  ex.stroke();
+  const mid = ecgH*0.6, amp = ecgH*0.5;
+  ex.strokeStyle = C.ecg; ex.lineWidth = 1.8; ex.lineJoin = "round"; ex.beginPath();
+  let pen = false;
+  for (let i=0;i<ecgW;i++){
+    const gap = (i - head + ecgW) % ecgW < 14, v = buf[i];
+    if (gap || isNaN(v)) { pen = false; continue; }
+    const y = mid - v*amp; if (!pen) { ex.moveTo(i,y); pen = true; } else ex.lineTo(i,y);
+  }
+  ex.stroke();
+  const hv = buf[(head-1+ecgW)%ecgW];
+  if (!isNaN(hv)) { ex.fillStyle = C.ecg; ex.beginPath(); ex.arc(head-1, mid-hv*amp, 2.5, 0, 6.3); ex.fill(); }
+}
+
+// ---------- echo canvas ----------
+const echoC = $("echo"), eh = echoC.getContext("2d");
+const echoBase = (() => {
+  const w = 320, h = 240, cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+  const c = cv.getContext("2d"), img = c.createImageData(w,h);
+  let seed = 7; const rnd = () => (seed = (seed*16807) % 2147483647) / 2147483647;
+  const ox = 160, oy = 10, R = 220, A = 0.75;
+  const chambers = [[150,118,34,52],[208,124,24,40],[150,196,30,22],[212,196,22,18]];
+  for (let y=0;y<h;y++) for (let x=0;x<w;x++){
+    const dx = x-ox, dy = y-oy, r = Math.hypot(dx,dy), a = Math.atan2(dx,dy);
+    let v = 0;
+    if (dy > 0 && r < R && Math.abs(a) < A) {
+      v = 40 + rnd()*90;
+      for (const [cx,cy,rx,ry] of chambers) { const d = ((x-cx)/rx)**2 + ((y-cy)/ry)**2; if (d < 1) v *= 0.15 + 0.5*d; }
+      const wall = Math.abs(x-180) < 9 && y > 70 && y < 200; if (wall) v += 70;
+      v *= 1 - r/R*0.45;
+    }
+    const i = (y*w+x)*4; img.data[i]=img.data[i+1]=img.data[i+2]=Math.min(255,v); img.data[i+3]=255;
+  }
+  c.putImageData(img,0,0);
+  return cv;
+})();
+function drawEcho(t, rt){
+  const w = 320, h = 240;
+  eh.fillStyle = "#000"; eh.fillRect(0,0,w,h);
+  if (t < 18) { eh.fillStyle = "#5C7076"; eh.font = "16px 'Source Sans 3', sans-serif"; eh.textAlign = "center"; eh.fillText("Echocardiogram not started", w/2, h/2); $("echoCap").textContent = "No images yet"; return; }
+  eh.save();
+  const beat = reduce ? 0 : Math.max(0, Math.sin(rt*Math.PI*2*HR(t)/60))*0.015;
+  eh.translate(160,120); eh.scale(1+beat, 1+beat); eh.translate(-160,-120);
+  if (t < 32) {
+    const frac = Math.min(1,(t-18)/12);
+    eh.beginPath(); eh.moveTo(160,10); eh.arc(160,10,220,Math.PI/2+0.75,Math.PI/2+0.75-1.5*frac,true); eh.closePath(); eh.clip();
+  }
+  eh.drawImage(echoBase,0,0);
+  eh.restore();
+  if (t < 32) {
+    const a = 0.75 - 1.5*Math.min(1,(t-18)/12);
+    eh.strokeStyle = C.ai; eh.lineWidth = 2; eh.beginPath(); eh.moveTo(160,10); eh.lineTo(160+Math.sin(a)*220, 10+Math.cos(a)*220); eh.stroke();
+    $("echoCap").textContent = "Scanning: apical four-chamber view";
+  } else if (t < 45) {
+    $("echoCap").textContent = "Echo received, model analysing";
+  } else {
+    const g = eh.createRadialGradient(180,135,4,180,135,60);
+    g.addColorStop(0,"rgba(255,80,60,.75)"); g.addColorStop(.5,"rgba(245,181,68,.35)"); g.addColorStop(1,"rgba(245,181,68,0)");
+    eh.fillStyle = g; eh.fillRect(100,60,160,150);
+    eh.strokeStyle = "#fff"; eh.lineWidth = 1; eh.setLineDash([3,3]); eh.strokeRect(166,74,28,126); eh.setLineDash([]);
+    eh.fillStyle = "#fff"; eh.font = "600 13px 'Source Sans 3', sans-serif"; eh.textAlign = "left"; eh.fillText("Septal wall 14 mm", 200, 92);
+    $("echoCap").textContent = "Heat map: the region the model weighed most (thickened septum)";
+  }
+}
+
+// ---------- glucose chart ----------
+const GX = t => 36 + t/T_END*356, GY = g => 10 + (210-g)/(210-40)*172;
+(function axes(){
+  let s = `<rect x="36" y="${GY(180)}" width="356" height="${GY(70)-GY(180)}" fill="rgba(61,220,151,.06)"/>`;
+  [70,100,140,180].forEach(g => {
+    s += `<line x1="36" x2="392" y1="${GY(g)}" y2="${GY(g)}" stroke="${g===70?"rgba(255,107,107,.7)":"rgba(141,162,168,.18)"}" ${g===70?'stroke-dasharray="4 3"':""}/>`;
+    s += `<text x="30" y="${GY(g)+3}" text-anchor="end">${g}</text>`;
+  });
+  s += `<text x="390" y="${GY(70)-4}" text-anchor="end" style="fill:var(--risk)">low &lt; 70</text>`;
+  s += `<text x="390" y="${GY(180)+11}" text-anchor="end" style="fill:var(--ecg)">target 70–180</text>`;
+  [0,30,60,90,120].forEach(t => { s += `<text x="${GX(t)}" y="204" text-anchor="${t===120?"end":t===0?"start":"middle"}">${clock(t)}</text>`; });
+  $("gAxes").innerHTML = s;
+})();
+const band = (a,b,f,w) => { let up = "", dn = ""; for (let x=a;x<=b;x+=2){ up += `${up?"L":"M"}${GX(x).toFixed(1)} ${GY(f(x)+w(x)).toFixed(1)} `; } for (let x=b;x>=a;x-=2){ dn += `L${GX(x).toFixed(1)} ${GY(f(x)-w(x)).toFixed(1)} `; } return up+dn+"Z"; };
+const line = (a,b,f) => { let s = ""; for (let x=a;x<=b;x+=2) s += `${s?"L":"M"}${GX(x).toFixed(1)} ${GY(f(x)).toFixed(1)} `; return s; };
+function drawGlucose(t){
+  let s = "";
+  if (t >= 50) {
+    const faded = t >= 64;
+    s += `<path d="${band(50,110,untreated,x=>3+0.3*(x-50))}" fill="rgba(108,199,240,${faded?.06:.16})"/>`;
+    s += `<path d="${line(50,110,untreated)}" fill="none" stroke="${C.ai}" stroke-width="2" stroke-dasharray="${faded?"3 4":"6 3"}" opacity="${faded?.55:1}"/>`;
+    s += `<text x="${GX(faded?104:72)}" y="${faded?GY(untreated(104))+16:GY(untreated(72))-10}" text-anchor="middle" style="fill:var(--ai)">${faded?"without treatment":"AI forecast"}</text>`;
+  }
+  if (t >= 56) {
+    s += `<circle cx="${GX(HYPO_T)}" cy="${GY(70)}" r="5" fill="none" stroke="${C.risk}" stroke-width="2"/>`;
+    s += `<text x="${GX(HYPO_T)-8}" y="${GY(70)-8}" text-anchor="end" style="fill:var(--risk)">low at ${clock(HYPO_T)}</text>`;
+  }
+  if (t >= 64) {
+    s += `<line x1="${GX(64)}" x2="${GX(64)}" y1="${GY(205)}" y2="${GY(45)}" stroke="${C.glu}" stroke-width="1" stroke-dasharray="2 3"/>`;
+    s += `<text x="${GX(64)+4}" y="${GY(198)}" style="fill:var(--glu)">15 g glucose</text>`;
+  }
+  if (t >= 82) {
+    s += `<path d="${band(82,120,treated,x=>2+0.2*(x-82))}" fill="rgba(108,199,240,.16)"/>`;
+    s += `<path d="${line(82,120,treated)}" fill="none" stroke="${C.ai}" stroke-width="2" stroke-dasharray="6 3"/>`;
+  }
+  if (t >= 12) {
+    let p = "", dots = "";
+    for (let k=12;k<=t;k+=5){ const x = GX(k).toFixed(1), y = GY(reading(k)).toFixed(1); p += `${p?"L":"M"}${x} ${y} `; dots += `<circle cx="${x}" cy="${y}" r="2.6" fill="${C.glu}"/>`; }
+    s += `<path d="${p}" fill="none" stroke="${C.glu}" stroke-width="1.6" opacity=".7"/>` + dots;
+  }
+  s += `<line x1="${GX(t)}" x2="${GX(t)}" y1="10" y2="${GY(40)}" stroke="rgba(226,236,238,.45)" stroke-width="1"/>`;
+  $("gData").innerHTML = s;
+
+  const last = t >= 12 ? Math.floor((t-12)/5)*5+12 : null;
+  const num = $("gNum"), arr = $("gArrow"), pill = $("gPill");
+  if (last === null) { num.textContent = "--"; arr.textContent = ""; }
+  else {
+    num.textContent = Math.round(reading(last));
+    const d = last >= 17 ? reading(last) - reading(last-5) : 0;
+    arr.textContent = d < -6 ? "↓↓" : d < -2 ? "↓" : d > 6 ? "↑↑" : d > 2 ? "↑" : "→";
+  }
+  let cls = "", txt = "";
+  if (t < 12) { txt = "Sensor not attached"; }
+  else if (t < 50) { cls = "ok"; txt = "In range"; }
+  else if (t < 56) { cls = "warn"; txt = "Falling"; }
+  else if (t < 64) { cls = "bad"; txt = `Low predicted ${clock(HYPO_T)}`; }
+  else if (t < 82) { cls = "warn"; txt = "Treated, rising"; }
+  else { cls = "ok"; txt = "Stable in range"; }
+  pill.className = "pill " + cls; pill.textContent = txt;
+}
+
+// ---------- scene ----------
+const pk = $("packets"), packets = [];
+let hubFlash = 0;
+const spawnAcc = {rec:0, ecg:0, glu:0, echo:0};
+function spawn(x, y, color){
+  const c = document.createElementNS(NS,"circle"); c.setAttribute("r","3.4"); c.setAttribute("fill",color);
+  pk.appendChild(c); packets.push({c, x, y, age:0, dur:1.3});
+}
+function clearPackets(){ packets.splice(0).forEach(p => p.c.remove()); }
+function stepPackets(dt, t, nurseX){
+  if (!reduce) {
+    const want = [
+      ["rec", t >= 1 && t < 8, 0.45, () => spawn(nurseX - 16, 248, C.rec)],
+      ["ecg", t >= 10, 0.38, () => spawn(326, 246, C.ecg)],
+      ["glu", t >= 12, 1.1, () => spawn(284, 254, C.glu)],
+      ["echo", t >= 18 && t < 32, 0.22, () => spawn(330, 214, C.ai)]
+    ];
+    for (const [k, on, every, fn] of want) { if (!on) { spawnAcc[k] = 0; continue; } spawnAcc[k] += dt; while (spawnAcc[k] >= every) { spawnAcc[k] -= every; fn(); } }
+  }
+  for (let i=packets.length-1;i>=0;i--){
+    const p = packets[i]; p.age += dt; const u = p.age/p.dur;
+    if (u >= 1) { p.c.remove(); packets.splice(i,1); hubFlash = 1; continue; }
+    const cx = p.x, cy = 40, ex2 = 400, ey = 30, a = 1-u;
+    p.c.setAttribute("cx", (a*a*p.x + 2*a*u*cx + u*u*ex2).toFixed(1));
+    p.c.setAttribute("cy", (a*a*p.y + 2*a*u*cy + u*u*ey).toFixed(1));
+    p.c.setAttribute("opacity", u > .85 ? ((1-u)/.15).toFixed(2) : 1);
+  }
+}
+const NURSE = [[0,470],[8,470],[12,900],[58,900],[62,300],[74,300],[79,900],[999,900]];
+const DOC   = [[0,900],[64,900],[69,470],[100,470],[106,900],[999,900]];
+function walk(kf, t){
+  for (let i=0;i<kf.length-1;i++){
+    const [t0,x0] = kf[i], [t1,x1] = kf[i+1];
+    if (t <= t1) { if (t < t0) return {x:x0, v:0}; const u = (t-t0)/(t1-t0), e = u*u*(3-2*u); return {x: x0+(x1-x0)*e, v: x1===x0 ? 0 : Math.sign(x1-x0)}; }
+  }
+  return {x: kf[kf.length-1][1], v:0};
+}
+function posePerson(g, pos, rt, holdAngle){
+  g.setAttribute("transform", `translate(${pos.x.toFixed(1)},352) scale(.95)`);
+  g.style.display = pos.x > 860 ? "none" : "";
+  const flip = g.querySelector(".flip"); flip.setAttribute("transform", pos.v > 0 ? "scale(-1,1)" : "");
+  const sw = pos.v && !reduce ? Math.sin(rt*9)*24 : 0;
+  g.querySelector(".legF").setAttribute("transform", `rotate(${sw} 0 -80)`);
+  g.querySelector(".legB").setAttribute("transform", `rotate(${-sw} 0 -80)`);
+  g.querySelector(".armB").setAttribute("transform", `rotate(${sw*0.7} 0 -132)`);
+  g.querySelector(".armF").setAttribute("transform", `rotate(${pos.v ? -sw*0.5 + 20 : holdAngle} 0 -132)`);
+}
+const nurse = $("nurse"), doctor = $("doctor");
+function blanketPath(chest){
+  const c = chest.toFixed(1);
+  return `M250 283 L250 262 C 268 252, 296 ${c}, 330 ${c} C 372 ${(chest+2).toFixed(1)}, 404 262, 444 266 C 486 270, 520 260, 548 256 C 564 254, 569 270, 569 283 Z`;
+}
+const co = id => $(id);
+function drawScene(t, rt, dt){
+  const breath = reduce ? 0 : Math.sin(rt*Math.PI*2/4.2);
+  const chest = 246 - 2.6*breath;
+  $("blanket").setAttribute("d", blanketPath(chest));
+  $("blanketFold").setAttribute("d", `M250 283 L250 262 C 256 258, 262 256, 270 254 L270 283 Z`);
+  $("arm").setAttribute("transform", `translate(0 ${(-1.2*breath).toFixed(2)})`);
+  $("drip").setAttribute("cy", (216 + (reduce ? 0 : (rt*0.7 % 1)*12)).toFixed(1));
+  const blink = !reduce && (rt % 4.5) < 0.14;
+  $("eye").setAttribute("transform", blink ? "translate(0 243) scale(1 .2) translate(0 -243)" : "");
+
+  $("leads").setAttribute("opacity", t >= 10 ? 1 : 0);
+  $("cgm").setAttribute("opacity", t >= 12 ? 1 : 0);
+  $("cgmGlow").setAttribute("opacity", t >= 12 ? (0.35 + 0.35*Math.abs(Math.sin(rt*2))).toFixed(2) : 0);
+  $("cart").setAttribute("opacity", t >= 16 && t < 34 ? 1 : 0);
+  $("probe").setAttribute("opacity", t >= 18 && t < 32 ? 1 : 0);
+  const sweep = reduce ? 0 : Math.sin(rt*1.6)*14;
+  $("probeBody").setAttribute("transform", `translate(${sweep.toFixed(1)} 0)`);
+  $("beam").setAttribute("transform", `translate(${sweep.toFixed(1)} 0)`);
+  $("beam").setAttribute("opacity", (0.25 + 0.2*Math.abs(Math.sin(rt*5))).toFixed(2));
+  $("cartScan").setAttribute("transform", `rotate(${(Math.sin(rt*2.4)*30).toFixed(1)} 42 9)`);
+  $("sweat").setAttribute("opacity", t >= 54 && t < 68 ? 1 : 0);
+
+  co("coLeads").classList.toggle("on", t >= 10 && t < 20);
+  co("coCgm").classList.toggle("on", t >= 12 && t < 22);
+  co("coEcho").classList.toggle("on", t >= 18 && t < 32);
+  co("coHub").classList.toggle("on", t >= 10 && t < 30);
+  const alerting = t >= 56 && t < 64;
+  co("coAlert").classList.toggle("on", alerting);
+  const pulse = alerting ? 0.5 + 0.5*Math.sin(rt*6) : 0;
+  $("wash").setAttribute("opacity", (alerting ? 0.04 + 0.06*pulse : 0).toFixed(3));
+  $("mAlert").setAttribute("opacity", (alerting ? 0.15 + 0.25*pulse : 0).toFixed(3));
+  $("mBadge").setAttribute("r", alerting ? 7 : 0);
+
+  const n = walk(NURSE, t), d = walk(DOC, t);
+  posePerson(nurse, n, rt, 38); posePerson(doctor, d, rt, 30);
+  nurse.querySelector(".clip").style.display = t < 12 ? "" : "none";
+  nurse.querySelector(".cup").style.display = t >= 58 && t < 70 ? "" : "none";
+
+  // wall monitor
+  const hr = HR(t), leads = t >= 10;
+  $("mHr").textContent = leads ? hr : "--";
+  $("mSpo").textContent = leads ? 97 : "--";
+  $("mGlu").textContent = t >= 12 ? Math.round(reading(Math.floor((t-12)/5)*5+12)) : "--";
+  let dpath = "";
+  for (let i=0;i<120;i++){
+    const ph = ((phase - (119-i)*(hr/60)*0.022) % 1 + 1) % 1;
+    const v = leads ? ecg(ph) : 0;
+    dpath += `${i?"L":"M"}${(10 + i*1.45).toFixed(1)} ${(58 - v*30).toFixed(1)} `;
+  }
+  $("mEcg").setAttribute("d", dpath);
+
+  stepPackets(st.playing ? dt : 0, t, n.x);
+  hubFlash = Math.max(0, hubFlash - dt*2.5);
+  $("hubLed").setAttribute("opacity", (0.35 + 0.65*hubFlash).toFixed(2));
+}
+
+// ---------- AI card ----------
+let barsBuilt = false;
+function drawAI(t){
+  const on = (id, cond, cls = "on") => $(id).classList.toggle(cls, cond);
+  on("nRec", t >= 3); on("nEcg", t >= 10); on("nEcho", t >= 30); on("nCgm", t >= 12);
+  on("eRec", t >= 32 && t < 45); on("eEcg", t >= 32 && t < 45); on("eEcho", t >= 32 && t < 45);
+  on("nFus", t >= 32); on("nFus", t >= 32 && t < 45, "busy");
+  on("eFus", t >= 45 && t < 50); on("nRisk", t >= 45);
+  on("eCgm", t >= 48); on("nFc", t >= 48); on("eFc", t >= 50);
+  on("nHypo", t >= 50); on("nHypo", t >= 56 && t < 64, "alarm");
+  $("tRisk").textContent = t >= 45 ? "Heart risk 71%" : "Heart risk";
+  $("tHypo").textContent = t >= 56 && t < 64 ? "Low at " + clock(HYPO_T) : t >= 64 ? "Resolved" : "Low alert";
+
+  const big = $("riskBig"), note = $("riskNote"), prog = $("riskProg");
+  if (t < 32) { big.textContent = "—"; note.textContent = t < 10 ? "Waiting for ECG and imaging" : t < 30 ? "Waiting for echo images" : "Inputs ready"; prog.hidden = true; }
+  else if (t < 45) { const f = (t-32)/13; big.textContent = "…"; note.textContent = `Fusing 3 data types · ${Math.round(f*100)}%`; prog.hidden = false; prog.firstElementChild.style.width = (f*100).toFixed(0) + "%"; }
+  else { big.textContent = "71%"; note.textContent = "High: significant coronary disease likely. Refer to cardiology."; prog.hidden = true; }
+
+  const fb = $("fcBig"), fn = $("fcNote");
+  if (t < 48) { fb.textContent = "—"; fn.textContent = t < 12 ? "Forecast starts once the CGM has data" : "Collecting readings"; fb.style.color = C.glu; }
+  else if (t < 56) { fb.textContent = "Falling"; fn.textContent = `Expected ${Math.round(untreated(t+60))} mg/dL in 60 min`; fb.style.color = C.glu; }
+  else if (t < 64) { fb.textContent = "Low " + clock(HYPO_T); fn.textContent = `Alert sent ${Math.floor(HYPO_T-56)} min before the low`; fb.style.color = C.risk; }
+  else if (t < 82) { fb.textContent = "Rising"; fn.textContent = "Fast-acting glucose given at " + clock(64); fb.style.color = C.glu; }
+  else { fb.textContent = "In range"; fn.textContent = `Expected ${Math.round(treated(Math.min(t+60,200)))} mg/dL in 60 min`; fb.style.color = C.ecg; }
+
+  const show = t >= 45;
+  if (show && !barsBuilt) {
+    const max = 19;
+    $("bars").innerHTML = XAI.map(([name, src, v]) => {
+      const col = src === "ECG" ? "var(--ecg)" : src === "Echo" ? "var(--ai)" : "var(--rec)";
+      return `<div class="bar"><span class="name"><span class="src" style="color:${col}">${src}</span>${name}</span><span class="track"><i style="background:${v>0?"var(--risk)":"var(--ecg)"}" data-w="${(Math.abs(v)/max*100).toFixed(0)}"></i></span><span class="val">${v>0?"+":"−"}${Math.abs(v)}</span></div>`;
+    }).join("") + `<div class="bar" style="margin-top:4px;font-weight:700"><span class="name">Baseline 10% + findings</span><span></span><span class="val">71%</span></div>`;
+    barsBuilt = true;
+    requestAnimationFrame(() => requestAnimationFrame(() => document.querySelectorAll("#bars i").forEach(i => i.style.width = i.dataset.w + "%")));
+  } else if (!show && barsBuilt) {
+    $("bars").innerHTML = `<div class="waiting">Appears when the heart model finishes (${clock(45)}).</div>`; barsBuilt = false;
+  }
+}
+
+// ---------- monitor + log + narration ----------
+let lastStage = -1, lastLog = -1;
+function drawPanels(t){
+  const i = stageIdx(t);
+  if (i !== lastStage) {
+    lastStage = i;
+    $("narrTitle").textContent = STAGES[i].name;
+    $("narrText").textContent = STAGES[i].text;
+    $("stagechip").textContent = `Stage ${i+1} of 7`;
+  }
+  segs.forEach((s, k) => {
+    s.classList.toggle("active", k === i);
+    s.classList.toggle("done", k < i);
+    const f = s.firstElementChild;
+    f.style.width = k === i ? ((t - STAGES[k].s)/(STAGES[k].e - STAGES[k].s)*100).toFixed(1) + "%" : "";
+  });
+  tl.setAttribute("aria-valuenow", Math.round(t)); tl.setAttribute("aria-valuetext", clock(t));
+  $("clock").textContent = clock(t);
+  fields.forEach(f => f.classList.toggle("filled", t >= +f.dataset.t));
+
+  const leads = t >= 10;
+  $("leadsoff").hidden = leads;
+  $("hr").textContent = leads ? HR(t) : "--";
+  $("spo").textContent = leads ? 97 : "--";
+  $("bp").textContent = t >= 3 ? (t >= 80 ? "138/86" : "148/92") : "--/--";
+  $("rr").textContent = t >= 3 ? (t >= 56 && t < 70 ? 20 : 16) : "--";
+  $("tmp").textContent = t >= 3 ? "36.8 °C" : "--";
+
+  const shown = EVENTS.filter(e => e[0] <= t);
+  if (shown.length !== lastLog) {
+    const grew = shown.length > lastLog && lastLog >= 0;
+    lastLog = shown.length;
+    $("log").innerHTML = shown.slice().reverse().map((e, k) => `<li class="${grew && k === 0 ? "new" : ""}"><span class="tm">${clock(e[0])}</span><i style="background:var(${COL[e[1]]})"></i><span>${e[2]}</span></li>`).join("");
+    $("logCount").textContent = `${shown.length} of ${EVENTS.length} events`;
+  }
+}
+
+let C = {};
+function readColors(){ C = {ecg:css("--ecg"), glu:css("--glu"), ai:css("--ai"), risk:css("--risk"), rec:css("--rec")}; }
+
+let rt = 0, lastTs = null;
+function render(force){ drawPanels(st.t); drawGlucose(st.t); drawAI(st.t); drawScene(st.t, rt, 0); drawEcho(st.t, rt); }
+function frame(ts){
+  const dt = lastTs === null ? 0 : Math.min(0.1, (ts - lastTs)/1000); lastTs = ts; rt += dt;
+  if (st.playing) { st.t += dt*SIM_RATE*st.speed; if (st.t >= T_END) { st.t = T_END; st.playing = false; syncPlay(); } }
+  stepEcg(dt, st.t); drawEcg();
+  drawScene(st.t, rt, dt); drawEcho(st.t, rt); drawPanels(st.t); drawGlucose(st.t); drawAI(st.t);
+  requestAnimationFrame(frame);
+}
+function start(){
+  readColors();
+  $("selSpeed").value = String(st.speed);
+  syncPlay();
+  if (reduce) { // fill the ECG once so the still frame has a trace
+    for (let k=0;k<ecgW;k++) stepEcg(0.01, st.t);
+  }
+  render(true);
+  requestAnimationFrame(frame);
+}
+boot({});
+})();
+</script>
+
+</body>
+</html>
